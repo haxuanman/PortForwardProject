@@ -6,7 +6,7 @@ namespace PortForwardClient
     {
         static async Task Main(string[] args)
         {
-            Console.WriteLine("Hello, World!");
+            Console.WriteLine("Hello, Client!");
 
             string command = string.Empty;
 

@@ -4,7 +4,7 @@
     {
         static async Task Main(string[] args)
         {
-            Console.WriteLine("Hello, World!");
+            Console.WriteLine("Hello, Server!");
 
             string command = string.Empty;
 
