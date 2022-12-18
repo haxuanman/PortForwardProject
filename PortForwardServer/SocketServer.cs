@@ -42,7 +42,7 @@ namespace PortForwardServer
 
 
 
-        public async void Start()
+        public void Start()
         {
             var configuration = HelperConfiguration.GetConfiguration();
 
@@ -61,84 +61,9 @@ namespace PortForwardServer
             _listenerLocal.BeginAccept(new AsyncCallback(ListenCallbackLocal), _listenerLocal);
 
         }
+        
 
-
-        private async void ReadCallbackLocal(IAsyncResult ar)
-        {
-            var handler = ar.AsyncState as ReadCallbackStateObject;
-            if (handler == null) return;
-
-            var client = handler.workSocket;
-
-            Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
-
-            if (!client.Connected) return;
-            if (!client.IsConnected()) return;
-
-            int read = client.EndReceive(ar);
-
-            if (read > 0)
-            {
-                handler.SaveMessageBuffer(read);
-
-                while (client.Available > 0)
-                {
-                    read = Math.Min(client.Available, ReadCallbackStateObject.BUFFER_SIZE);
-
-                    client.Receive(handler.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None);
-
-                    handler.SaveMessageBuffer(read);
-                }
-
-                Console.WriteLine($"Service {client.LocalEndPoint} revice message from {client.RemoteEndPoint}: {handler.sb}");
-
-                await SendMessageToAllClient(_listenerPublicEndPoint.ToString(), handler.revicedBytes);
-            }
-
-            var resetState = new ReadCallbackStateObject(client);
-            client.BeginReceive(resetState.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReadCallbackLocal), resetState);
-        }
-
-
-
-        private async void ReadCallbackPublic(IAsyncResult ar)
-        {
-            var handler = ar.AsyncState as ReadCallbackStateObject;
-            if (handler == null) return;
-
-            var client = handler.workSocket;
-
-            Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
-
-            if (!client.Connected) return;
-            if (!client.IsConnected()) return;
-
-            int read = client.EndReceive(ar);
-
-            if (read > 0)
-            {
-                handler.SaveMessageBuffer(read);
-
-                while (client.Available > 0)
-                {
-                    read = Math.Min(client.Available, ReadCallbackStateObject.BUFFER_SIZE);
-
-                    client.Receive(handler.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None);
-
-                    handler.SaveMessageBuffer(read);
-                }
-
-                Console.WriteLine($"Service {client.LocalEndPoint} revice message from {client.RemoteEndPoint}: {handler.sb}");
-
-                await SendMessageToAllClient(_listenerLocalEndPoint.ToString(), handler.revicedBytes);
-            }
-
-            var resetState = new ReadCallbackStateObject(client);
-            client.BeginReceive(resetState.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReadCallbackPublic), resetState);
-        }
-
-
-
+        
         public async void ListenCallbackLocal(IAsyncResult result)
         {
 
@@ -168,7 +93,9 @@ namespace PortForwardServer
 
                     Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
 
-                    await SendMessageToAllClient(_listenerPublicEndPoint.ToString(), state.revicedBytes);
+                    var messageData = HelperClientServerMessage.CreateMessageObject((int)ConstClientServerMessageType.Default, state.revicedBytes);
+
+                    await SendMessageToAllClient(_listenerPublicEndPoint.ToString(), HelperClientServerMessage.GetMessageBytes(messageData));
 
                 }
             }
@@ -211,7 +138,9 @@ namespace PortForwardServer
 
                     Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
 
-                    await SendMessageToAllClient(_listenerLocalEndPoint.ToString(), state.revicedBytes);
+                    var messageData = HelperClientServerMessage.GetMessageObject(state.revicedBytes);
+
+                    await SendMessageToAllClient(_listenerLocalEndPoint.ToString(), Convert.FromBase64String(messageData.MessageData).ToList());
 
                 }
             }
@@ -230,25 +159,6 @@ namespace PortForwardServer
         public async Task Send(string data)
         {
             await _listenerPublic.SendAsync(Encoding.UTF8.GetBytes(data), SocketFlags.None);
-        }
-
-
-
-        public void ListenCallback(IAsyncResult result)
-        {
-            
-            var listener = result.AsyncState as Socket;
-            if (listener == null) return;
-            var client = listener.EndAccept(result);
-
-            Console.WriteLine($"New client {client.RemoteEndPoint} connect to server: {listener.LocalEndPoint}");
-            _listClients[listener.LocalEndPoint.ToString()].TryAdd(client.RemoteEndPoint.ToString(), client);
-
-            listener.BeginAccept(new AsyncCallback(ListenCallback), listener);
-
-            ReadCallbackStateObject state = new(client);
-            client.BeginReceive(state.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReadCallback), state);
-
         }
 
 
@@ -272,43 +182,6 @@ namespace PortForwardServer
                 Console.WriteLine($"send total {messages.Count} bytes");
                 await client.Value.SendAsync(messages.ToArray(), SocketFlags.None);
             }
-        }
-
-
-
-        private async void ReadCallback(IAsyncResult ar)
-        {
-            var handler = ar.AsyncState as ReadCallbackStateObject;
-            if (handler == null) return;
-
-            var client = handler.workSocket;
-            if (!client.Connected) return;
-            if (!client.IsConnected()) return;
-
-            int read = client.EndReceive(ar);
-
-            if (read > 0)
-            {
-                handler.SaveMessageBuffer(read);
-
-                while (client.Available > 0)
-                {
-                    read = Math.Min(client.Available, ReadCallbackStateObject.BUFFER_SIZE);
-
-                    client.Receive(handler.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None);
-
-                    handler.SaveMessageBuffer(read);
-                }
-
-                Console.WriteLine($"Service {client.LocalEndPoint} revice message from {client.RemoteEndPoint}: {handler.sb}");
-
-                await client.SendAsync(Encoding.UTF8.GetBytes("reviced"), SocketFlags.None);
-
-                await SendMessageToAllClient(_listenerLocalEndPoint.ToString(), handler.revicedBytes);
-            }
-
-            var resetState = new ReadCallbackStateObject(client);
-            client.BeginReceive(resetState.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReadCallback), resetState);
         }
     }
 }

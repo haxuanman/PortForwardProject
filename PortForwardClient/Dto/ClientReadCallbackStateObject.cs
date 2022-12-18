@@ -12,9 +12,9 @@ namespace PortForwardClient.Dto
     {
         public ClientReadCallbackStateObject() { }
         public ClientReadCallbackStateObject(Socket socket) : base(socket) { }
-        public async Task SendMessageToRemoteClient(Socket remote)
+        public async Task SendMessageToRemoteClient(Socket remote, List<byte> message)
         {
-            await remote.SendAsync(revicedBytes.ToArray(), SocketFlags.None);
+            await remote.SendAsync(message.ToArray(), SocketFlags.None);
         }
 
     }
