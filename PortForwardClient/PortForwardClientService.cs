@@ -71,20 +71,27 @@ namespace PortForwardClient
             Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
 
 
-            while (true)
+            try
             {
-                var state = new ClientReadCallbackStateObject(client);
-                var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                while (true)
+                {
+                    if (!client.IsConnected()) break;
 
-                Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+                    var state = new ClientReadCallbackStateObject(client);
 
-                state.SaveMessageBuffer(read);
+                    var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
 
-                Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
 
-                await state.SendMessageToRemoteClient(_localClient);
+                    state.SaveMessageBuffer(read);
 
+                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+
+                    await state.SendMessageToRemoteClient(_localClient);
+
+                }
             }
+            catch { }
         }
 
 
@@ -133,20 +140,25 @@ namespace PortForwardClient
 
             Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
 
-            while (true)
+            try
             {
-                var state = new ClientReadCallbackStateObject(client);
-                var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                while (true)
+                {
+                    if (!client.IsConnected()) break;
 
-                Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+                    var state = new ClientReadCallbackStateObject(client);
+                    var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
 
-                state.SaveMessageBuffer(read);
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
 
-                Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+                    state.SaveMessageBuffer(read);
 
-                await state.SendMessageToRemoteClient(_remoteClient);
+                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
 
-            }
+                    await state.SendMessageToRemoteClient(_remoteClient);
+
+                }
+            } catch { }
         }
 
 

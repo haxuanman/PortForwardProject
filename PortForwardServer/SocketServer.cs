@@ -139,41 +139,89 @@ namespace PortForwardServer
 
 
 
-        public void ListenCallbackLocal(IAsyncResult result)
+        public async void ListenCallbackLocal(IAsyncResult result)
         {
 
             var listener = result.AsyncState as Socket;
             if (listener == null) return;
             var client = listener.EndAccept(result);
+            if (client.RemoteEndPoint == null) return;
 
-            Console.WriteLine($"New client {client.RemoteEndPoint} connect to server: {listener.LocalEndPoint}");
-            _listClients[listener.LocalEndPoint.ToString()].TryAdd(client.RemoteEndPoint.ToString(), client);
-            Console.WriteLine($"{listener.LocalEndPoint.ToString()} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
+            var clientName = client.RemoteEndPoint.ToString();
+            Console.WriteLine($"New client {clientName} connect to server: {listener.LocalEndPoint}");
+            _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
+            Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
 
-            listener.BeginAccept(new AsyncCallback(ListenCallback), listener);
+            try
+            {
+                while (true)
+                {
+                    if (!client.IsConnected()) break;
 
-            ReadCallbackStateObject state = new(client);
-            client.BeginReceive(state.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReadCallbackLocal), state);
+                    var state = new ReadCallbackStateObject(client);
+
+                    var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+
+                    state.SaveMessageBuffer(read);
+
+                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+
+                    await SendMessageToAllClient(_listenerPublicEndPoint.ToString(), state.revicedBytes);
+
+                }
+            }
+            catch { }
+            finally
+            {
+                _listClients[listener.LocalEndPoint.ToString()].TryRemove(clientName, out _);
+            }
+
+            listener.BeginAccept(new AsyncCallback(ListenCallbackLocal), listener);
 
         }
 
 
 
-        public void ListenCallbackPublic(IAsyncResult result)
+        public async void ListenCallbackPublic(IAsyncResult result)
         {
 
             var listener = result.AsyncState as Socket;
             if (listener == null) return;
             var client = listener.EndAccept(result);
 
+            var clientName = client.RemoteEndPoint.ToString();
             Console.WriteLine($"New client {client.RemoteEndPoint} connect to server: {listener.LocalEndPoint}");
-            _listClients[listener.LocalEndPoint.ToString()].TryAdd(client.RemoteEndPoint.ToString(), client);
-            Console.WriteLine($"{listener.LocalEndPoint.ToString()} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
+            _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
+            Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
 
-            listener.BeginAccept(new AsyncCallback(ListenCallback), listener);
 
-            ReadCallbackStateObject state = new(client);
-            client.BeginReceive(state.buffer, 0, ReadCallbackStateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReadCallbackPublic), state);
+            try
+            {
+                while (true)
+                {
+                    if (!client.IsConnected()) break;
+                    var state = new ReadCallbackStateObject(client);
+                    var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+
+                    state.SaveMessageBuffer(read);
+
+                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+
+                    await SendMessageToAllClient(_listenerLocalEndPoint.ToString(), state.revicedBytes);
+
+                }
+            }
+            catch { }
+            finally
+            {
+                _listClients[listener.LocalEndPoint.ToString()].TryRemove(clientName, out _);
+            }
+
+            listener.BeginAccept(new AsyncCallback(ListenCallbackPublic), listener);
 
         }
 

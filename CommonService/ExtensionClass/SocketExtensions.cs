@@ -13,6 +13,7 @@ namespace CommonService.ExtensionClass
         {
             try
             {
+                if (socket == null) return false;
                 return !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
             }
             catch (SocketException) { return false; }

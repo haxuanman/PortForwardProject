@@ -4,23 +4,31 @@
     {
         static async Task Main(string[] args)
         {
-            Console.WriteLine("Hello, Server!");
-
-            string command = string.Empty;
-
-            var server = new SocketServer();
-            server.Start();
-
-            do
+            try
             {
-                command = Console.ReadLine();
-                if (string.IsNullOrEmpty(command)) break;
+                Console.WriteLine("Hello, Server!");
 
-                await server.Send(command);
+                string command = string.Empty;
 
-            } while (!string.IsNullOrEmpty(command));
+                var server = new SocketServer();
+                server.Start();
 
-            server.Stop();
+                do
+                {
+                    command = Console.ReadLine();
+                    if (string.IsNullOrEmpty(command)) break;
+
+                    await server.Send(command);
+
+                } while (!string.IsNullOrEmpty(command));
+
+                server.Stop();
+            }
+            catch { }
+            finally
+            {
+                Console.ReadKey();
+            }
         }
     }
 }
