@@ -2,6 +2,7 @@
 using CommonService.ExtensionClass;
 using CommonService.Helpers;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using PortForwardClient.Dto;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,7 @@ namespace PortForwardClient
 
         private readonly Socket _localClient = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         private readonly Socket _remoteClient = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        private readonly IConfiguration _configuration = HelperConfiguration.GetConfiguration();
 
 
 
@@ -56,7 +58,7 @@ namespace PortForwardClient
             var remoteIp = Dns.Resolve(configuration.GetValue<string>("Server:PublicAddress")).AddressList.Select(e => e.MapToIPv4()).First();
             var remoteEndPoint = new IPEndPoint(remoteIp, configuration.GetValue<int>("Server:PublicPort"));
             
-            _localClient.BeginConnect(localEndPoint, new AsyncCallback(ConnectCallbackLocalClient), _localClient);
+            //_localClient.BeginConnect(localEndPoint, new AsyncCallback(ConnectCallbackLocalClient), _localClient);
             _remoteClient.BeginConnect(remoteEndPoint, new AsyncCallback(ConnectCallbackRemoteClient), _remoteClient);
         }
 
@@ -66,15 +68,21 @@ namespace PortForwardClient
         {
             var client = ar.AsyncState as Socket;
             if (client == null) return;
-            if (!client.IsConnected())
-            {
-                Console.WriteLine($"Client {client.LocalEndPoint} disconnected to server {client.RemoteEndPoint}");
-                return;
-            }
             client.EndConnect(ar);
 
             Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
 
+            var requestNewPort = new ClientRequestNewPortDto
+            {
+                LocalPort = _configuration.GetValue<int>("Client:LocalPort"),
+                RequestPort = _configuration.GetValue<int?>("Client:RequestPort").GetValueOrDefault(0)
+            };
+            var requestNewPortMgs = HelperClientServerMessage.CreateMessageObject(
+                (int)ConstClientServerMessageType.RequestNewClient,
+                JsonConvert.SerializeObject(requestNewPort));
+            var messageByte = HelperClientServerMessage.GetMessageBytes(requestNewPortMgs);
+
+            client.Send(messageByte.ToArray(), SocketFlags.None);
 
             try
             {

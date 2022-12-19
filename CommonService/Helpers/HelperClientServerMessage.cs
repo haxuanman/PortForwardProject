@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace CommonService.Helpers
 {
-    public class HelperClientServerMessage
+    public static class HelperClientServerMessage
     {
 
         public static ClientServerMessageDto CreateMessageObject(int type, List<byte> data)
@@ -25,7 +25,7 @@ namespace CommonService.Helpers
             return new ClientServerMessageDto
             {
                 MessageType = type,
-                MessageData = JsonConvert.SerializeObject(data)
+                MessageData = data
             };
         }
 

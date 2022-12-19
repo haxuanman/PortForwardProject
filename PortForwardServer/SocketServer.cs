@@ -21,8 +21,8 @@ namespace PortForwardServer
         private readonly Socket _listenerLocal = new (AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         private IPEndPoint _listenerPublicEndPoint;
         private IPEndPoint _listenerLocalEndPoint;
-        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Socket>> _listClients = new ConcurrentDictionary<string, ConcurrentDictionary<string, Socket>>();
-
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Socket>> _listClients = new ();
+        private readonly BlockingCollection<ItemClientRequestInfo> _listPublicClients = new();
 
 
         public void Stop()
@@ -126,6 +126,27 @@ namespace PortForwardServer
             Console.WriteLine($"New client {client.RemoteEndPoint} connect to server: {listener.LocalEndPoint}");
             _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
             Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
+
+            var requestNewPortMgsBytes = new byte[client.ReceiveBufferSize];
+            int reviceByte = await client.ReceiveAsync(requestNewPortMgsBytes, SocketFlags.None);
+            Console.WriteLine($"revice {reviceByte}");
+            var requestNewPortMgs = HelperClientServerMessage.GetMessageObject(requestNewPortMgsBytes.ToList().Take(reviceByte).ToList());
+            var requestNewPortInfo = JsonConvert.DeserializeObject<ClientRequestNewPortDto>(requestNewPortMgs.MessageData);
+            //await client.SendAsync(HelperClientServerMessage.GetMessageBytes(requestNewPortMgs).ToArray(), SocketFlags.None);
+
+            var listenerLocalEndPoint = new IPEndPoint(IPAddress.Any, requestNewPortInfo.RequestPort);
+            Socket listenerLocal = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            listenerLocal.Bind(listenerLocalEndPoint);
+            listenerLocal.Listen();
+
+            _listPublicClients.TryAdd(new ItemClientRequestInfo
+            {
+                LocalEndpointName = listenerLocal.LocalEndPoint.ToString(),
+                RemotePort = requestNewPortInfo.LocalPort,
+                LocalPort = ((IPEndPoint)listenerLocal.LocalEndPoint).Port,
+                RemoteEndpointName = client.RemoteEndPoint.ToString()
+            });
+
 
             listener.BeginAccept(new AsyncCallback(ListenCallbackPublic), listener);
 
