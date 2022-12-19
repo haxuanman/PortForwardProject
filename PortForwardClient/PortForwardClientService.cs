@@ -65,7 +65,12 @@ namespace PortForwardClient
         private async void ConnectCallbackRemoteClient(IAsyncResult ar)
         {
             var client = ar.AsyncState as Socket;
-            if (client == null || !client.IsConnected()) return;
+            if (client == null) return;
+            if (!client.IsConnected())
+            {
+                Console.WriteLine($"Client {client.LocalEndPoint} disconnected to server {client.RemoteEndPoint}");
+                return;
+            }
             client.EndConnect(ar);
 
             Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
@@ -75,21 +80,28 @@ namespace PortForwardClient
             {
                 while (true)
                 {
-                    if (!client.IsConnected()) break;
+                    if (!client.IsConnected())
+                    {
+                        Console.WriteLine($"Client {client.LocalEndPoint} disconnected to server {client.RemoteEndPoint}");
+                        break;
+                    }
 
                     var state = new ClientReadCallbackStateObject(client);
 
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
                     Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
 
                     state.SaveMessageBuffer(read);
-
-                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
-
+                    
                     var messageData = HelperClientServerMessage.GetMessageObject(state.revicedBytes);
 
-                    await _localClient.SendAsync(Convert.FromBase64String(messageData.MessageData).ToArray(), SocketFlags.None);
+                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {messageData.MessageData}");
+
+                    if (messageData.MessageData.Length > 0)
+                        await _localClient.SendAsync(Convert.FromBase64String(messageData.MessageData).ToArray(), SocketFlags.None);
 
                 }
             }
@@ -113,7 +125,10 @@ namespace PortForwardClient
                     if (!client.IsConnected()) break;
 
                     var state = new ClientReadCallbackStateObject(client);
+
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
                     Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
 
@@ -123,7 +138,8 @@ namespace PortForwardClient
 
                     var messageData = HelperClientServerMessage.CreateMessageObject((int)ConstClientServerMessageType.Default, state.revicedBytes);
 
-                    await _remoteClient.SendAsync(HelperClientServerMessage.GetMessageBytes(messageData).ToArray(), SocketFlags.None);
+                    if (messageData.MessageData.Length > 0)
+                        await _remoteClient.SendAsync(HelperClientServerMessage.GetMessageBytes(messageData).ToArray(), SocketFlags.None);
 
                 }
             } catch { }

@@ -13,8 +13,9 @@ namespace CommonService.Dto
     }
 
 
-    public enum ConstClientServerMessageType
+    public enum ConstClientServerMessageType : int
     {
         Default = 0,
+        RequestNewClient = 1,
     }
 }

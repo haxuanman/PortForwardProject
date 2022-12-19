@@ -61,7 +61,7 @@ namespace PortForwardServer
             _listenerLocal.BeginAccept(new AsyncCallback(ListenCallbackLocal), _listenerLocal);
 
         }
-        
+
 
         
         public async void ListenCallbackLocal(IAsyncResult result)
@@ -77,6 +77,8 @@ namespace PortForwardServer
             _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
             Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
 
+            listener.BeginAccept(new AsyncCallback(ListenCallbackLocal), listener);
+
             try
             {
                 while (true)
@@ -85,9 +87,11 @@ namespace PortForwardServer
 
                     var state = new ReadCallbackStateObject(client);
 
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
-                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}: {read} bytes");
 
                     state.SaveMessageBuffer(read);
 
@@ -105,7 +109,7 @@ namespace PortForwardServer
                 _listClients[listener.LocalEndPoint.ToString()].TryRemove(clientName, out _);
             }
 
-            listener.BeginAccept(new AsyncCallback(ListenCallbackLocal), listener);
+            
 
         }
 
@@ -123,16 +127,25 @@ namespace PortForwardServer
             _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
             Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
 
+            listener.BeginAccept(new AsyncCallback(ListenCallbackPublic), listener);
 
             try
             {
                 while (true)
                 {
-                    if (!client.IsConnected()) break;
-                    var state = new ReadCallbackStateObject(client);
-                    var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                    if (!client.IsConnected())
+                    {
+                        Console.WriteLine($"Client {client.LocalEndPoint} disconnected to server {client.RemoteEndPoint}");
+                        break;
+                    }
 
-                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+                    var state = new ReadCallbackStateObject(client);
+
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
+                    var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
+                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
+
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}: {read} bytes");
 
                     state.SaveMessageBuffer(read);
 
@@ -150,7 +163,7 @@ namespace PortForwardServer
                 _listClients[listener.LocalEndPoint.ToString()].TryRemove(clientName, out _);
             }
 
-            listener.BeginAccept(new AsyncCallback(ListenCallbackPublic), listener);
+            
 
         }
 
@@ -177,10 +190,10 @@ namespace PortForwardServer
                     continue;
                 }
 
-                Console.WriteLine($"SendMessageToAllClient {endpoint} {client.Value.RemoteEndPoint}:");
+                Console.WriteLine($"SendMessageToAllClient {endpoint} {client.Value.RemoteEndPoint}");
 
                 Console.WriteLine($"send total {messages.Count} bytes");
-                await client.Value.SendAsync(messages.ToArray(), SocketFlags.None);
+                if (messages.Count > 0) await client.Value.SendAsync(messages.ToArray(), SocketFlags.None);
             }
         }
     }
