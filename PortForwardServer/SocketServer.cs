@@ -18,11 +18,9 @@ namespace PortForwardServer
     {
 
         private readonly Socket _listenerPublic = new (AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        private readonly Socket _listenerLocal = new (AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        private IPEndPoint _listenerPublicEndPoint;
-        private IPEndPoint _listenerLocalEndPoint;
-        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Socket>> _listClients = new ();
         private readonly BlockingCollection<ItemClientRequestInfo> _listPublicClients = new();
+        private readonly IConfiguration _configuration = HelperConfiguration.GetConfiguration();
+        private readonly object _lock = new object();
 
 
         public void Stop()
@@ -30,13 +28,11 @@ namespace PortForwardServer
             try
             {
                 _listenerPublic.Shutdown(SocketShutdown.Both);
-                _listenerLocal.Shutdown(SocketShutdown.Both);
             }
             catch { }
             finally
             {
                 _listenerPublic.Close();
-                _listenerLocal.Close();
             }
         }
 
@@ -44,21 +40,11 @@ namespace PortForwardServer
 
         public void Start()
         {
-            var configuration = HelperConfiguration.GetConfiguration();
 
-            _listenerPublicEndPoint = new IPEndPoint(IPAddress.Any, configuration.GetValue<int>("Server:PublicPort"));
-            _listenerLocalEndPoint = new IPEndPoint(IPAddress.Any, configuration.GetValue<int>("Server:LocalPort"));
-
-            _listenerPublic.Bind(_listenerPublicEndPoint);
+            var listenerPublicEndPoint = new IPEndPoint(IPAddress.Any, _configuration.GetValue<int>("Server:PublicPort"));
+            _listenerPublic.Bind(listenerPublicEndPoint);
             _listenerPublic.Listen();
-            _listClients.TryAdd(_listenerPublicEndPoint.ToString(), new());
-
-            _listenerLocal.Bind(_listenerLocalEndPoint);
-            _listenerLocal.Listen();
-            _listClients.TryAdd(_listenerLocalEndPoint.ToString(), new());
-
             _listenerPublic.BeginAccept(new AsyncCallback(ListenCallbackPublic), _listenerPublic);
-            _listenerLocal.BeginAccept(new AsyncCallback(ListenCallbackLocal), _listenerLocal);
 
         }
 
@@ -73,44 +59,81 @@ namespace PortForwardServer
             if (client.RemoteEndPoint == null) return;
 
             var clientName = client.RemoteEndPoint.ToString();
-            Console.WriteLine($"New client {clientName} connect to server: {listener.LocalEndPoint}");
-            _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
-            Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
+            Console.WriteLine($"New client {clientName} connect to server {listener.LocalEndPoint}");
+
+            #region tạo child client từ client
+
+            var requestChildClient = new RequestNewChildrenClientDto
+            {
+                ServerChildrentEnpoint = client.RemoteEndPoint?.ToString(),
+                ServerChildrentPort = ((IPEndPoint)client.RemoteEndPoint).Port,
+
+                ServerPort = ((IPEndPoint)client.LocalEndPoint).Port,
+            };
+
+            var messageNewChildClient = HelperClientServerMessage.CreateMessageObject(
+                (int)ConstClientServerMessageType.RequestNewChildClient,
+                JsonConvert.SerializeObject(requestChildClient));
+
+
+            var remoteClient = _listPublicClients.Where(e => e.ServerPort == ((IPEndPoint)client.LocalEndPoint).Port).FirstOrDefault();
+            if (remoteClient == null) return;
+            await remoteClient.CurrentClient.SendAsync(HelperClientServerMessage.GetMessageBytes(messageNewChildClient).ToArray(), SocketFlags.None);
+
+
+            remoteClient.ChildrenClients.Add(new ItemClientRequestInfo
+            {
+                CurrentClient = client,
+
+                ServerPort = requestChildClient.ServerPort,
+                ServerEndpointName = requestChildClient.ServerChildrentEnpoint,
+            });
+
+            byte[] bufferTmp = new byte[remoteClient.CurrentClient.ReceiveBufferSize];
+            await remoteClient.CurrentClient.ReceiveAsync(bufferTmp, SocketFlags.None);
+
+            #endregion
 
             listener.BeginAccept(new AsyncCallback(ListenCallbackLocal), listener);
 
             try
             {
+
                 while (true)
                 {
-                    if (!client.IsConnected()) break;
+                    if (!client.IsConnected())
+                    {
+                        break;
+                    }
 
                     var state = new ReadCallbackStateObject(client);
 
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
-                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}: {read} bytes");
+                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint} {read} bytes");
 
                     state.SaveMessageBuffer(read);
 
                     Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
 
-                    var messageData = HelperClientServerMessage.CreateMessageObject((int)ConstClientServerMessageType.Default, state.revicedBytes);
+                    if (state.revicedBytes.Count > 0)
+                    {
+                        var messageData = HelperClientServerMessage.CreateMessageObject(
+                        (int)ConstClientServerMessageType.Default,
+                        requestChildClient.ServerChildrentEnpoint,
+                        state.revicedBytes);
 
-                    await SendMessageToAllClient(_listenerPublicEndPoint.ToString(), HelperClientServerMessage.GetMessageBytes(messageData));
+                        lock (_lock)
+                        {
+                            HelperClientServerMessage.SendMessageAsync(remoteClient.CurrentClient, messageData);
+                        }
+                        
+                    }
 
                 }
             }
             catch { }
-            finally
-            {
-                _listClients[listener.LocalEndPoint.ToString()].TryRemove(clientName, out _);
-            }
-
-            
-
+            finally { }
         }
 
 
@@ -123,33 +146,52 @@ namespace PortForwardServer
             var client = listener.EndAccept(result);
 
             var clientName = client.RemoteEndPoint.ToString();
-            Console.WriteLine($"New client {client.RemoteEndPoint} connect to server: {listener.LocalEndPoint}");
-            _listClients[listener.LocalEndPoint.ToString()].TryAdd(clientName, client);
-            Console.WriteLine($"{listener.LocalEndPoint} {_listClients[listener.LocalEndPoint.ToString()].Count()}");
+            Console.WriteLine($"Client {client.RemoteEndPoint} connected to server {listener.LocalEndPoint}");
 
+            #region tạo port cho client
             var requestNewPortMgsBytes = new byte[client.ReceiveBufferSize];
             int reviceByte = await client.ReceiveAsync(requestNewPortMgsBytes, SocketFlags.None);
-            Console.WriteLine($"revice {reviceByte}");
             var requestNewPortMgs = HelperClientServerMessage.GetMessageObject(requestNewPortMgsBytes.ToList().Take(reviceByte).ToList());
             var requestNewPortInfo = JsonConvert.DeserializeObject<ClientRequestNewPortDto>(requestNewPortMgs.MessageData);
-            //await client.SendAsync(HelperClientServerMessage.GetMessageBytes(requestNewPortMgs).ToArray(), SocketFlags.None);
-
+            
             var listenerLocalEndPoint = new IPEndPoint(IPAddress.Any, requestNewPortInfo.RequestPort);
             Socket listenerLocal = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             listenerLocal.Bind(listenerLocalEndPoint);
             listenerLocal.Listen();
+            Console.WriteLine($"Created listen port {((IPEndPoint)listenerLocal.LocalEndPoint).Port} for client {client.RemoteEndPoint}");
 
-            _listPublicClients.TryAdd(new ItemClientRequestInfo
+            var clientInfo = new ItemClientRequestInfo
             {
-                LocalEndpointName = listenerLocal.LocalEndPoint.ToString(),
-                RemotePort = requestNewPortInfo.LocalPort,
-                LocalPort = ((IPEndPoint)listenerLocal.LocalEndPoint).Port,
-                RemoteEndpointName = client.RemoteEndPoint.ToString()
-            });
+                ClientPort = requestNewPortInfo.LocalPort,
+                ClientEndpointName = client.RemoteEndPoint.ToString(),
 
+                ServerEndpointName = listenerLocal.LocalEndPoint.ToString(),
+                ServerPort = ((IPEndPoint)listenerLocal.LocalEndPoint).Port,
+                
+                CurrentClient = client
+            };
+
+            _listPublicClients.TryAdd(clientInfo);
+
+            listenerLocal.BeginAccept(new AsyncCallback(ListenCallbackLocal), listenerLocal);
+
+            #endregion
+
+            #region trả reponse cho client
+            var requestNewPort = new ClientRequestNewPortDto
+            {
+                LocalPort = requestNewPortInfo.LocalPort,
+                RequestPort = clientInfo.ServerPort
+            };
+            var requestNewPortMgsResponse = HelperClientServerMessage.CreateMessageObject(
+                (int)ConstClientServerMessageType.RequestNewClient,
+                JsonConvert.SerializeObject(requestNewPort));
+            await client.SendAsync(HelperClientServerMessage.GetMessageBytes(requestNewPortMgs).ToArray(), SocketFlags.None);
+            #endregion
 
             listener.BeginAccept(new AsyncCallback(ListenCallbackPublic), listener);
 
+            #region lắng nghe gói tin
             try
             {
                 while (true)
@@ -162,30 +204,54 @@ namespace PortForwardServer
 
                     var state = new ReadCallbackStateObject(client);
 
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
-                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}: {read} bytes");
+                    Console.WriteLine($"Has comming message from server {client.RemoteEndPoint} to client {client.LocalEndPoint}: {read} bytes");
 
                     state.SaveMessageBuffer(read);
 
-                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
-
                     var messageData = HelperClientServerMessage.GetMessageObject(state.revicedBytes);
 
-                    await SendMessageToAllClient(_listenerLocalEndPoint.ToString(), Convert.FromBase64String(messageData.MessageData).ToList());
+                    Console.WriteLine($"Service {client.LocalEndPoint} revice message: {messageData.MessageData}");
 
+                    switch (messageData.MessageType)
+                    {
+                        case (int)ConstClientServerMessageType.Default:
+                            Console.WriteLine(messageData.MessageData);
+
+                            var clientRemoteInfo = _listPublicClients
+                                .Where(e => e.ClientEndpointName == client.RemoteEndPoint.ToString())
+                                .FirstOrDefault();
+
+                            var sendToChildClient = clientRemoteInfo.ChildrenClients.Where(e => e.ServerEndpointName == messageData.ServerChildEndPoint)
+                                .FirstOrDefault();
+
+                            lock (_lock)
+                            {
+                                sendToChildClient.CurrentClient.Send(Convert.FromBase64String(messageData.MessageData), SocketFlags.None);
+                            }
+
+                            break;
+                        case (int)ConstClientServerMessageType.RequestNewClient:
+                            break;
+                        case (int)ConstClientServerMessageType.RequestNewChildClient:
+
+                            var messageNewChildClient = JsonConvert.DeserializeObject<RequestNewChildrenClientDto>(messageData.MessageData);
+
+                            clientRemoteInfo = _listPublicClients
+                                .Where(e => e.ClientEndpointName == client.RemoteEndPoint.ToString())
+                                .FirstOrDefault();
+
+                            await clientRemoteInfo.CurrentClient.SendAsync(state.revicedBytes.ToArray(), SocketFlags.None);
+
+                            break;
+
+                    }
                 }
             }
             catch { }
-            finally
-            {
-                _listClients[listener.LocalEndPoint.ToString()].TryRemove(clientName, out _);
-            }
-
-            
-
+            finally { }
+            #endregion
         }
 
 
@@ -195,27 +261,5 @@ namespace PortForwardServer
             await _listenerPublic.SendAsync(Encoding.UTF8.GetBytes(data), SocketFlags.None);
         }
 
-
-
-        private async Task SendMessageToAllClient(string endpoint, List<byte> messages)
-        {
-            _listClients.TryGetValue(endpoint, out var listClient);
-
-            Console.WriteLine($"SendMessageToAllClient {endpoint} {listClient.Count()}");
-
-            foreach (var client in listClient ?? new())
-            {
-                if (client.Value == null || !client.Value.IsConnected())
-                {
-                    _listClients[endpoint].TryRemove(client);
-                    continue;
-                }
-
-                Console.WriteLine($"SendMessageToAllClient {endpoint} {client.Value.RemoteEndPoint}");
-
-                Console.WriteLine($"send total {messages.Count} bytes");
-                if (messages.Count > 0) await client.Value.SendAsync(messages.ToArray(), SocketFlags.None);
-            }
-        }
     }
 }

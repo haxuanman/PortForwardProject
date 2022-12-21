@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -8,12 +9,14 @@ namespace CommonService.Dto
 {
     public class ItemClientRequestInfo
     {
-        public string RemoteEndpointName { get; set; } = string.Empty;
-        public string LocalEndpointName { get; set; } = string.Empty;
+        public string ClientEndpointName { get; set; } = string.Empty;
+        public string ServerEndpointName { get; set; } = string.Empty;
 
-        public int RemotePort { get; set; }
-        public int LocalPort { get; set; }
+        public int ClientPort { get; set; }
+        public int ServerPort { get; set; }
 
-        public List<string> ChildrenClient { get; set; } = new List<string>();
+        public Socket? CurrentClient { get; set; }
+
+        public List<ItemClientRequestInfo> ChildrenClients { get; set; } = new();
     }
 }

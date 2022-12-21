@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,11 +12,19 @@ namespace CommonService.Helpers
     public static class HelperClientServerMessage
     {
 
-        public static ClientServerMessageDto CreateMessageObject(int type, List<byte> data)
+        public static int SendMessageAsync(Socket client, ClientServerMessageDto input)
+        {
+            return client.Send(GetMessageBytes(input).ToArray(), SocketFlags.None);
+        }
+
+
+
+        public static ClientServerMessageDto CreateMessageObject(int type, string serverChildEnpoint, List<byte> data)
         {
             return new ClientServerMessageDto
             {
                 MessageType = type,
+                ServerChildEndPoint = serverChildEnpoint,
                 MessageData = Convert.ToBase64String(data.ToArray())
             };
         }

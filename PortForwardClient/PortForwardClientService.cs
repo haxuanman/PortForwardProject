@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using PortForwardClient.Dto;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -19,7 +20,9 @@ namespace PortForwardClient
 
         private readonly Socket _localClient = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         private readonly Socket _remoteClient = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        private readonly BlockingCollection<ItemClientRequestInfo> _listLocalChildrenClients = new();
         private readonly IConfiguration _configuration = HelperConfiguration.GetConfiguration();
+        private readonly object _lock = new object();
 
 
 
@@ -58,7 +61,6 @@ namespace PortForwardClient
             var remoteIp = Dns.Resolve(configuration.GetValue<string>("Server:PublicAddress")).AddressList.Select(e => e.MapToIPv4()).First();
             var remoteEndPoint = new IPEndPoint(remoteIp, configuration.GetValue<int>("Server:PublicPort"));
             
-            //_localClient.BeginConnect(localEndPoint, new AsyncCallback(ConnectCallbackLocalClient), _localClient);
             _remoteClient.BeginConnect(remoteEndPoint, new AsyncCallback(ConnectCallbackRemoteClient), _remoteClient);
         }
 
@@ -72,6 +74,7 @@ namespace PortForwardClient
 
             Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
 
+            #region request remote port
             var requestNewPort = new ClientRequestNewPortDto
             {
                 LocalPort = _configuration.GetValue<int>("Client:LocalPort"),
@@ -83,6 +86,16 @@ namespace PortForwardClient
             var messageByte = HelperClientServerMessage.GetMessageBytes(requestNewPortMgs);
 
             client.Send(messageByte.ToArray(), SocketFlags.None);
+            #endregion
+
+            #region revice reponse
+            var requestNewPortMgsResponseBytes = new byte[client.ReceiveBufferSize];
+            int reviceByte = await client.ReceiveAsync(requestNewPortMgsResponseBytes, SocketFlags.None);
+            var requestNewPortResponseMgs = HelperClientServerMessage.GetMessageObject(requestNewPortMgsResponseBytes.ToList().Take(reviceByte).ToList());
+            var requestNewPortInfo = JsonConvert.DeserializeObject<ClientRequestNewPortDto>(requestNewPortResponseMgs.MessageData);
+
+            Console.WriteLine($"Connected to server with remote port {requestNewPortInfo.RequestPort}");
+            #endregion
 
             try
             {
@@ -96,11 +109,9 @@ namespace PortForwardClient
 
                     var state = new ClientReadCallbackStateObject(client);
 
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
-                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+                    Console.WriteLine($"Has comming message from server {client.RemoteEndPoint} to client {client.LocalEndPoint}: {read} bytes");
 
                     state.SaveMessageBuffer(read);
                     
@@ -108,8 +119,46 @@ namespace PortForwardClient
 
                     Console.WriteLine($"Client {client.LocalEndPoint} revice message: {messageData.MessageData}");
 
-                    if (messageData.MessageData.Length > 0)
-                        await _localClient.SendAsync(Convert.FromBase64String(messageData.MessageData).ToArray(), SocketFlags.None);
+                    switch (messageData.MessageType)
+                    {
+                        case (int)ConstClientServerMessageType.Default:
+                            
+                            var localChildClient = _listLocalChildrenClients
+                                .Where(e => e.ServerEndpointName == messageData.ServerChildEndPoint)
+                                .FirstOrDefault();
+                            if (localChildClient?.CurrentClient == null) break;
+                            lock (_lock)
+                            {
+                                localChildClient.CurrentClient.Send(Convert.FromBase64String(messageData.MessageData), SocketFlags.None);
+                            }
+                            
+
+                            break;
+
+                        case (int)ConstClientServerMessageType.RequestNewClient:
+                            break;
+
+                        case (int)ConstClientServerMessageType.RequestNewChildClient:
+
+                            var childClientEndPoint = new IPEndPoint(IPAddress.Loopback, _configuration.GetValue<int>("Client:LocalPort"));
+                            var childClient = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+                            var messageNewChildClient = JsonConvert.DeserializeObject<RequestNewChildrenClientDto>(messageData.MessageData);
+
+
+                            var tt = new ItemClientRequestInfo
+                            {
+                                CurrentClient = childClient,
+
+                                ServerEndpointName = messageNewChildClient.ServerChildrentEnpoint,
+                                ServerPort = messageNewChildClient.ServerPort
+                            };
+                            childClient.BeginConnect(childClientEndPoint, new AsyncCallback(ConnectCallbackLocalClient), tt);
+
+                            break;
+                    }
+
+                    
 
                 }
             }
@@ -120,23 +169,40 @@ namespace PortForwardClient
 
         private async void ConnectCallbackLocalClient(IAsyncResult ar)
         {
-            var client = ar.AsyncState as Socket;
+            var clientInfo = ar.AsyncState as ItemClientRequestInfo;
+            var client = clientInfo.CurrentClient;
             if (client == null) return;
             client.EndConnect(ar);
+
+            clientInfo.ClientEndpointName = client.LocalEndPoint.ToString();
+            clientInfo.ClientPort = ((IPEndPoint)client.LocalEndPoint).Port;
+            _listLocalChildrenClients.TryAdd(clientInfo);
+
+            var reponseMessage = HelperClientServerMessage.CreateMessageObject(
+                (int)ConstClientServerMessageType.RequestNewChildClient,
+                JsonConvert.SerializeObject(new RequestNewChildrenClientDto
+                {
+                    ServerChildrentEnpoint = clientInfo.ServerEndpointName,
+                    ServerChildrentPort = clientInfo.ServerPort
+                }));
+            HelperClientServerMessage.SendMessageAsync(_remoteClient, reponseMessage);
 
             Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
 
             try
             {
+                var serverChildClient = _listLocalChildrenClients
+                    .Where(e => e.ClientEndpointName == client.LocalEndPoint.ToString())
+                    .FirstOrDefault();
+                if (serverChildClient == null) return;
+
                 while (true)
                 {
                     if (!client.IsConnected()) break;
 
                     var state = new ClientReadCallbackStateObject(client);
 
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} start receive to server {client.RemoteEndPoint}");
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
-                    Console.WriteLine($"--------Client {client.LocalEndPoint} end receive to server {client.RemoteEndPoint}");
 
                     Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
 
@@ -144,11 +210,18 @@ namespace PortForwardClient
 
                     Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
 
-                    var messageData = HelperClientServerMessage.CreateMessageObject((int)ConstClientServerMessageType.Default, state.revicedBytes);
+                    if (state.revicedBytes.Count > 0)
+                    {
+                        var messageData = HelperClientServerMessage.CreateMessageObject(
+                        (int)ConstClientServerMessageType.Default,
+                        serverChildClient.ServerEndpointName,
+                        state.revicedBytes);
 
-                    if (messageData.MessageData.Length > 0)
-                        await _remoteClient.SendAsync(HelperClientServerMessage.GetMessageBytes(messageData).ToArray(), SocketFlags.None);
-
+                        lock (_lock)
+                        {
+                            HelperClientServerMessage.SendMessageAsync(_remoteClient, messageData);
+                        }
+                    }
                 }
             } catch { }
         }

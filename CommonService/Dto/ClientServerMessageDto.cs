@@ -9,6 +9,9 @@ namespace CommonService.Dto
     public class ClientServerMessageDto
     {
         public int MessageType { get; set; }
+
+        public string ServerChildEndPoint { get; set; } = string.Empty;
+
         public string MessageData { get; set; } = string.Empty;
     }
 
@@ -17,5 +20,6 @@ namespace CommonService.Dto
     {
         Default = 0,
         RequestNewClient = 1,
+        RequestNewChildClient = 2,
     }
 }
