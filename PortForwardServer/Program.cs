@@ -1,4 +1,7 @@
-﻿namespace PortForwardServer
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+namespace PortForwardServer
 {
     public class Program
     {
@@ -8,21 +11,12 @@
             {
                 Console.WriteLine("Hello, Server!");
 
-                string command = string.Empty;
-
-                var server = new SocketServer();
-                server.Start();
-
-                do
-                {
-                    command = Console.ReadLine();
-                    if (string.IsNullOrEmpty(command)) break;
-
-                    await server.Send(command);
-
-                } while (!string.IsNullOrEmpty(command));
-
-                server.Stop();
+                await new HostBuilder()
+                    .ConfigureServices((hostContext, services) =>
+                    {
+                        services.AddHostedService<SocketServer>();
+                    })
+                    .RunConsoleAsync();
             }
             catch { }
             finally
