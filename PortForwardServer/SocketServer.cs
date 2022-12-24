@@ -242,7 +242,11 @@ namespace PortForwardServer
                                 .Where(e => e.ClientEndpointName == client.RemoteEndPoint.ToString())
                                 .FirstOrDefault();
 
-                            await clientRemoteInfo.CurrentClient.SendAsync(state.revicedBytes.ToArray(), SocketFlags.None);
+                            var serverChildrentClient = clientRemoteInfo.ChildrenClients
+                                .Where(e => e.ServerEndpointName == messageNewChildClient.ServerChildrentEnpoint)
+                                .FirstOrDefault();
+
+                            await serverChildrentClient.CurrentClient.SendAsync(state.revicedBytes.ToArray(), SocketFlags.None);
 
                             break;
 
