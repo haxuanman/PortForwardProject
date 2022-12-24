@@ -40,14 +40,42 @@ namespace CommonService.Helpers
 
         public static List<byte> GetMessageBytes(ClientServerMessageDto message)
         {
-            var messageStr = JsonConvert.SerializeObject(message);
+            var messageStr = $"{JsonConvert.SerializeObject(message)}|";
             return Encoding.UTF8.GetBytes(messageStr).ToList();
         }
 
         public static ClientServerMessageDto GetMessageObject(List<byte> messageBytes)
         {
             var messageStr = Encoding.UTF8.GetString(messageBytes.ToArray());
+            if (messageStr.EndsWith("|")) messageStr = messageStr.Remove(messageStr.Length - 1);
             return JsonConvert.DeserializeObject<ClientServerMessageDto>(messageStr) ?? new();
+        }
+
+
+
+        public static List<ClientServerMessageDto> GetListMessageObject(ref string messageQueue)
+        {
+            if (string.IsNullOrEmpty(messageQueue)) return new List<ClientServerMessageDto>();
+
+            var listMessage = messageQueue.Split("|")
+                .Where(e => !string.IsNullOrEmpty(e))
+                .ToList();
+
+            if (listMessage.Count == 0) return new List<ClientServerMessageDto>();
+
+            if (!messageQueue.EndsWith("|"))
+            {
+                messageQueue = listMessage.LastOrDefault("");
+                listMessage.RemoveAt(listMessage.Count - 1);
+                if (listMessage.Count == 0) return new List<ClientServerMessageDto>();
+            } else
+            {
+                messageQueue = string.Empty;
+            }
+            
+            var listResult = listMessage.Select(e => JsonConvert.DeserializeObject<ClientServerMessageDto>(e)).ToList();
+
+            return listResult!;
         }
     }
 }

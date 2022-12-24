@@ -15,8 +15,10 @@ namespace CommonService.Dto
         public int ClientPort { get; set; }
         public int ServerPort { get; set; }
 
-        public Socket? CurrentClient { get; set; }
+        public Socket CurrentClient { get; set; } = (Socket)null;
 
         public List<ItemClientRequestInfo> ChildrenClients { get; set; } = new();
+
+        public string MessageQueue { get; set; } = string.Empty;
     }
 }
