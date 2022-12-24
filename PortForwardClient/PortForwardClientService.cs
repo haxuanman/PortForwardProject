@@ -146,14 +146,14 @@ namespace PortForwardClient
                             var messageNewChildClient = JsonConvert.DeserializeObject<RequestNewChildrenClientDto>(messageData.MessageData);
 
 
-                            var tt = new ItemClientRequestInfo
+                            var newChildClientState = new ItemClientRequestInfo
                             {
                                 CurrentClient = childClient,
 
                                 ServerEndpointName = messageNewChildClient.ServerChildrentEnpoint,
                                 ServerPort = messageNewChildClient.ServerPort
                             };
-                            childClient.BeginConnect(childClientEndPoint, new AsyncCallback(ConnectCallbackLocalClient), tt);
+                            childClient.BeginConnect(childClientEndPoint, new AsyncCallback(ConnectCallbackLocalClient), newChildClientState);
 
                             break;
                     }
@@ -162,7 +162,7 @@ namespace PortForwardClient
 
                 }
             }
-            catch { }
+            catch (Exception ex) { Console.WriteLine(ex); }
         }
 
 
@@ -187,7 +187,7 @@ namespace PortForwardClient
                 }));
             HelperClientServerMessage.SendMessageAsync(_remoteClient, reponseMessage);
 
-            Console.WriteLine($"Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
+            Console.WriteLine($"Child Client {client.LocalEndPoint} connected to server {client.RemoteEndPoint}");
 
             try
             {
@@ -204,11 +204,11 @@ namespace PortForwardClient
 
                     var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);
 
-                    Console.WriteLine($"Has comming message to {client.LocalEndPoint} from server {client.RemoteEndPoint}");
+                    Console.WriteLine($"Has comming message to child client {client.LocalEndPoint} from server {client.RemoteEndPoint}");
 
                     state.SaveMessageBuffer(read);
 
-                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+                    Console.WriteLine($"Child client {client.LocalEndPoint} revice message: {state.sb}");
 
                     if (state.revicedBytes.Count > 0)
                     {
@@ -223,7 +223,7 @@ namespace PortForwardClient
                         }
                     }
                 }
-            } catch { }
+            } catch (Exception ex) { Console.WriteLine(ex); }
         }
 
     }

@@ -59,7 +59,7 @@ namespace PortForwardServer
             if (client.RemoteEndPoint == null) return;
 
             var clientName = client.RemoteEndPoint.ToString();
-            Console.WriteLine($"New client {clientName} connect to server {listener.LocalEndPoint}");
+            Console.WriteLine($"New Child client {clientName} connect to server {listener.LocalEndPoint}");
 
             #region tạo child client từ client
 
@@ -114,7 +114,7 @@ namespace PortForwardServer
 
                     state.SaveMessageBuffer(read);
 
-                    Console.WriteLine($"Client {client.LocalEndPoint} revice message: {state.sb}");
+                    Console.WriteLine($"Child Client {client.LocalEndPoint} revice message: {state.sb}");
 
                     if (state.revicedBytes.Count > 0)
                     {
@@ -132,7 +132,7 @@ namespace PortForwardServer
 
                 }
             }
-            catch { }
+            catch (Exception ex) { Console.WriteLine(ex); }
             finally { }
         }
 
@@ -249,7 +249,7 @@ namespace PortForwardServer
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) { Console.WriteLine(ex); }
             finally { }
             #endregion
         }
