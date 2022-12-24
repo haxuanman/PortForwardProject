@@ -3,7 +3,6 @@ using CommonService.ExtensionClass;
 using CommonService.Helpers;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
-using SocketIOClient;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -47,8 +46,6 @@ namespace PortForwardServer
             _listenerPublic.Listen();
             _listenerPublic.BeginAccept(new AsyncCallback(ListenCallbackPublic), _listenerPublic);
 
-            var client = new SocketIO("http://+:11000");
-
         }
 
 
@@ -58,11 +55,11 @@ namespace PortForwardServer
 
             var listener = result.AsyncState as Socket;
             if (listener == null) return;
+
             var client = listener.EndAccept(result);
             if (client.RemoteEndPoint == null) return;
 
             var clientName = client.RemoteEndPoint.ToString();
-            Console.WriteLine($"New Child client {clientName} connect to server {listener.LocalEndPoint}");
 
             #region tạo child client từ client
 
@@ -83,6 +80,7 @@ namespace PortForwardServer
             if (remoteClient == null) return;
             await remoteClient.CurrentClient.SendAsync(HelperClientServerMessage.GetMessageBytes(messageNewChildClient).ToArray(), SocketFlags.None);
 
+            Console.WriteLine($"New Child client {clientName} connect to server {listener.LocalEndPoint}");
 
             remoteClient.ChildrenClients.Add(new ItemClientRequestInfo
             {
