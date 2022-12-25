@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Net.Sockets;
 
 namespace CommonService.ExtensionClass
 {
@@ -15,7 +10,6 @@ namespace CommonService.ExtensionClass
             try
             {
                 socket.Shutdown(SocketShutdown.Both);
-
             }
             catch { }
             finally

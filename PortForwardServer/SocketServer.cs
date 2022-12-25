@@ -81,7 +81,7 @@ namespace PortForwardServer
                     {
                         if (!client.IsConnected())
                         {
-                            Console.WriteLine($"Client {client.LocalEndPoint} disconnected to server {client.RemoteEndPoint}");
+                            Console.WriteLine($"Client {client.RemoteEndPoint} disconnected to server {client.LocalEndPoint}");
                             break;
                         }
 
@@ -231,10 +231,7 @@ namespace PortForwardServer
                                         .FirstOrDefault();
                                     if (sendToChildClient == null) break;
 
-                                    lock (_lock)
-                                    {
-                                        sendToChildClient.CurrentClient.Send(Convert.FromBase64String(messageData.MessageData), SocketFlags.None);
-                                    }
+                                    sendToChildClient.CurrentClient.Send(Convert.FromBase64String(messageData.MessageData), SocketFlags.None);
 
                                     break;
                                 case (int)ConstClientServerMessageType.RequestNewClient:
@@ -250,7 +247,7 @@ namespace PortForwardServer
                 finally { }
                 #endregion
             }
-            catch (Exception ex) { Console.WriteLine(ex); }
+            catch (Exception ex) { Console.WriteLine(ex); throw; }
             finally
             {
                 client.SafeClose();
@@ -265,11 +262,14 @@ namespace PortForwardServer
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            Console.WriteLine("Strarting Server");
+
             var listenerPublicEndPoint = new IPEndPoint(IPAddress.Any, _configuration.GetValue<int>("Server:PublicPort"));
             _listenerPublic.Bind(listenerPublicEndPoint);
             _listenerPublic.Listen();
             _listenerPublic.BeginAccept(new AsyncCallback(ListenCallbackPublic), _listenerPublic);
 
+            Console.WriteLine("Strarted Server");
             return Task.CompletedTask;
         }
 
@@ -277,7 +277,12 @@ namespace PortForwardServer
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            Console.WriteLine("Stoping Server");
+
             _listenerPublic.SafeClose();
+
+            Console.WriteLine("Stopted Server");
+
             return Task.CompletedTask;
         }
     }

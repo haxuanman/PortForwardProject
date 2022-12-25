@@ -17,12 +17,11 @@ namespace PortForwardServer
                         services.AddHostedService<SocketServer>();
                     })
                     .RunConsoleAsync();
+
+                Console.WriteLine("Goodbye, Server!");
             }
             catch { }
-            finally
-            {
-                Console.ReadKey();
-            }
+            finally { }
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace PortForwardClient
 {
@@ -6,23 +7,20 @@ namespace PortForwardClient
     {
         static async Task Main(string[] args)
         {
-            Console.WriteLine("Hello, Client!");
-
-            string command = string.Empty;
-
-            var client = new PortForwardClientService();
-            client.Start();
-
-            do
+            try
             {
-                command = Console.ReadLine();
-                if (string.IsNullOrEmpty(command)) break;
+                Console.WriteLine("Hello, Client!");
 
-                await client.Send(command);
+                await new HostBuilder()
+                        .ConfigureServices((hostContext, services) =>
+                        {
+                            services.AddHostedService<PortForwardClientService>();
+                        })
+                        .RunConsoleAsync();
 
-            } while (!string.IsNullOrEmpty(command));
-
-            client.Stop();
+                Console.WriteLine("Goodbye, Client!");
+            } catch { }
+            finally { }
         }
     }
 }

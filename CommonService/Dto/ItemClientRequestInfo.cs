@@ -27,10 +27,6 @@ namespace CommonService.Dto
         public void Dispose()
         {
             CurrentClient.SafeClose();
-            foreach(var item in ChildrenClients)
-            {
-                item.CurrentClient.SafeClose();
-            }
         }
     }
 }
