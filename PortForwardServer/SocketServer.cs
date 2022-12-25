@@ -269,6 +269,8 @@ namespace PortForwardServer
             _listenerPublic.Listen();
             _listenerPublic.BeginAccept(new AsyncCallback(ListenCallbackPublic), _listenerPublic);
 
+            Console.WriteLine($"Server open port {listenerPublicEndPoint.Port}");
+
             Console.WriteLine("Strarted Server");
             return Task.CompletedTask;
         }

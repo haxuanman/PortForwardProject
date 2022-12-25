@@ -63,11 +63,6 @@ namespace PortForwardClient
                 {
                     while (true)
                     {
-                        if (!client.IsConnected())
-                        {
-                            Console.WriteLine($"Client {client.LocalEndPoint} disconnected to server {client.RemoteEndPoint}");
-                            break;
-                        }
 
                         var state = new ClientReadCallbackStateObject(client);
 
@@ -126,7 +121,7 @@ namespace PortForwardClient
                         }
                     }
                 }
-                catch (Exception ex) { Console.WriteLine(ex); }
+                catch (Exception ex) { Console.WriteLine(ex); throw; }
 
                 #endregion
             }
