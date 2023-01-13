@@ -64,6 +64,8 @@ namespace PortForwardClient
                     while (true)
                     {
 
+                        if (!client.IsConnected()) throw new ApplicationException("Server DisConnected");
+
                         var state = new ClientReadCallbackStateObject(client);
 
                         var read = await client.ReceiveAsync(state.buffer, SocketFlags.None);

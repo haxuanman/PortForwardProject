@@ -48,7 +48,15 @@ namespace CommonService.Helpers
         {
             var messageStr = Encoding.UTF8.GetString(messageBytes.ToArray());
             if (messageStr.EndsWith("|")) messageStr = messageStr.Remove(messageStr.Length - 1);
-            return JsonConvert.DeserializeObject<ClientServerMessageDto>(messageStr) ?? new();
+            
+            try
+            {
+                return JsonConvert.DeserializeObject<ClientServerMessageDto>(messageStr) ?? new();
+            } catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return null;
+            } 
         }
 
 

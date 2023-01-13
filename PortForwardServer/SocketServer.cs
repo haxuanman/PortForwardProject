@@ -146,6 +146,7 @@ namespace PortForwardServer
                 var requestNewPortMgsBytes = new byte[client.ReceiveBufferSize];
                 int reviceByte = await client.ReceiveAsync(requestNewPortMgsBytes, SocketFlags.None);
                 var requestNewPortMgs = HelperClientServerMessage.GetMessageObject(requestNewPortMgsBytes.ToList().Take(reviceByte).ToList());
+                if (requestNewPortMgs == null) return;
                 var requestNewPortInfo = JsonConvert.DeserializeObject<ClientRequestNewPortDto>(requestNewPortMgs.MessageData);
 
                 var listenerLocalEndPoint = new IPEndPoint(IPAddress.Any, requestNewPortInfo.RequestPort);
@@ -262,7 +263,7 @@ namespace PortForwardServer
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine("Strarting Server");
+            Console.WriteLine("Starting Server");
 
             var listenerPublicEndPoint = new IPEndPoint(IPAddress.Any, _configuration.GetValue<int>("Server:PublicPort"));
             _listenerPublic.Bind(listenerPublicEndPoint);
@@ -271,7 +272,7 @@ namespace PortForwardServer
 
             Console.WriteLine($"Server open port {listenerPublicEndPoint.Port}");
 
-            Console.WriteLine("Strarted Server");
+            Console.WriteLine("Started Server");
             return Task.CompletedTask;
         }
 
