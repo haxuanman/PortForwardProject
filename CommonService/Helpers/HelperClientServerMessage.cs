@@ -54,6 +54,7 @@ namespace CommonService.Helpers
                 return JsonConvert.DeserializeObject<ClientServerMessageDto>(messageStr) ?? new();
             } catch (Exception ex)
             {
+                Console.WriteLine(messageStr);
                 Console.WriteLine(ex.ToString());
                 return null;
             } 
@@ -81,9 +82,17 @@ namespace CommonService.Helpers
                 messageQueue = string.Empty;
             }
             
-            var listResult = listMessage.Select(e => JsonConvert.DeserializeObject<ClientServerMessageDto>(e)).ToList();
+            try
+            {
+                var listResult = listMessage.Select(e => JsonConvert.DeserializeObject<ClientServerMessageDto>(e)).ToList();
 
-            return listResult!;
+                return listResult!;
+            } catch (Exception e)
+            {
+                Console.WriteLine(messageQueue);
+                Console.WriteLine(e.ToString());
+                return new List<ClientServerMessageDto>();
+            }
         }
     }
 }
