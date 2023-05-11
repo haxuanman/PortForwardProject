@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace PortForwardClient
@@ -11,16 +12,22 @@ namespace PortForwardClient
             {
                 Console.WriteLine("Hello, Client!");
 
-                await new HostBuilder()
+                var hostBuilder = new HostBuilder()
                         .ConfigureServices((hostContext, services) =>
                         {
-                            services.AddHostedService<PortForwardClientService>();
+                            services.AddHostedService<SocketParentClientService>();
                         })
-                        .RunConsoleAsync();
+                        .ConfigureAppConfiguration(e =>
+                        {
+                            e.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                        })
+                        .Build();
+
+                await hostBuilder.RunAsync();
 
                 Console.WriteLine("Goodbye, Client!");
-            } catch { }
-            finally { }
+
+            } catch (Exception ex) { Console.WriteLine(ex); }
         }
     }
 }

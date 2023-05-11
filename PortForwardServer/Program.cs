@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-
-namespace PortForwardServer
+﻿namespace PortForwardServer
 {
     public class Program
     {
@@ -11,17 +8,28 @@ namespace PortForwardServer
             {
                 Console.WriteLine("Hello, Server!");
 
-                await new HostBuilder()
-                    .ConfigureServices((hostContext, services) =>
-                    {
-                        services.AddHostedService<SocketServer>();
-                    })
-                    .RunConsoleAsync();
+                var builder = WebApplication.CreateBuilder(args);
+
+                builder.WebHost.ConfigureAppConfiguration(webBuilder =>
+                {
+                    webBuilder.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                });
+
+                builder.WebHost.ConfigureServices(services =>
+                {
+                    services.AddSignalR();
+                });
+
+                var app = builder.Build();
+
+                app.MapHub<SocketServerHub>("/ServerSocketHub");
+
+                app.Run();
 
                 Console.WriteLine("Goodbye, Server!");
+
             }
-            catch { }
-            finally { }
+            catch (Exception ex) { Console.WriteLine(ex); }
         }
     }
 }
