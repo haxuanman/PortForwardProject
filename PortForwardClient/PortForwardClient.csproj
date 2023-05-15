@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CommonService\CommonService.csproj" />
+    <ProjectReference Include="..\PortForwardServer\PortForwardServer.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using PortForwardClient.Common;
+using PortForwardServer;
 using System.Net;
 using System.Net.Sockets;
 
@@ -25,13 +27,13 @@ namespace PortForwardClient
 
                     logging.SetMinimumLevel(LogLevel.Information);
                 })
-                .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(5) })
+                .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy())
                 .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub")
-            .Build();
+                .Build();
 
-            _connection.On("RequestChildClient", new Type[] { typeof(string) }, RequestChildClient, null);
+            _connection.On("RequestChildClient", new Type[] { typeof(string) }, RequestChildClient, new object());
 
-            _connection.On("ChildClientSocketRequest", new Type[] { typeof(string), typeof(string) }, ChildClientSocketRequest, null);
+            _connection.On("ChildClientSocketRequest", new Type[] { typeof(string), typeof(string) }, ChildClientSocketRequest, new object());
 
         }
 
@@ -46,11 +48,9 @@ namespace PortForwardClient
 
             await client.ConnectAsync("localhost", 3389);
 
-            Console.WriteLine($"Create child client port {((IPEndPoint)client?.Client.LocalEndPoint)?.Port} for client {remoteClientName}");
+            Console.WriteLine($"Create child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteClientName}");
 
             _listChildConnect[remoteClientName] = client!;
-
-            //_ = Task.Run(async () => await HandleChildSocket(remoteClientName, client));
 
             HandleChildSocketProxy(remoteClientName, client);
 
@@ -86,6 +86,7 @@ namespace PortForwardClient
 
                 }
             } catch (Exception ex) { Console.WriteLine(ex); }
+            finally { Console.WriteLine($"Closed child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteClientName}"); }
         }
 
 

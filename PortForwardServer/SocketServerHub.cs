@@ -30,7 +30,7 @@ namespace PortForwardServer
 
                 _listener?.Start();
 
-                Console.WriteLine($"Open local port {((IPEndPoint)_listener?.LocalEndpoint).Port} for client {Context.ConnectionId}");
+                Console.WriteLine($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context.ConnectionId}");
 
                 _connectionId = Context.ConnectionId;
 
@@ -45,7 +45,7 @@ namespace PortForwardServer
 
         async void HandleParentClientProxy(HubCallerContext context, IHubCallerClients<ISocketServerHub> clients)
         {
-            await HandleParentClient(Context, Clients);
+            await HandleParentClient(context, clients);
         }
 
 
@@ -60,20 +60,32 @@ namespace PortForwardServer
                 {
                     TcpClient client = _listener.AcceptTcpClient();
 
-                    var childClientName = ((IPEndPoint)client.Client.LocalEndPoint).ToString() ?? string.Empty;
+                    var childClientName = ((IPEndPoint?)client?.Client.LocalEndPoint)?.ToString() ?? string.Empty;
 
                     await clients.Client(context.ConnectionId).RequestChildClient(childClientName);
 
-                    _listChildConnect[childClientName] = client;
+                    _listChildConnect[childClientName] = client!;
 
-                    await HandleClient(childClientName, client, clients);
+                    Console.WriteLine($"New Child client of {_connectionId} connected: {childClientName}");
 
-                    Console.WriteLine("New Child Client Connect");
+                    await HandleClient(childClientName, client!, clients);
+
+                    //HandleClientProxy(childClientName, client!, clients);
 
                 }
             }
-            catch (Exception ex) { Console.WriteLine(ex); }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
 
+        }
+
+
+
+        async void HandleClientProxy(string childClientName, TcpClient client, IHubCallerClients<ISocketServerHub> clients)
+        {
+            await HandleClient(childClientName, client!, clients);
         }
 
 
@@ -98,18 +110,30 @@ namespace PortForwardServer
                     await clients.Client(_connectionId).ChildClientSocketRequest(childClientName, Convert.ToBase64String(buffer));
 
                 }
-            } catch (Exception ex) { Console.WriteLine(ex); }
+            } catch (Exception ex)
+            {
+                Console.WriteLine($"Child client {childClientName}: {ex.Message}");
+            }
+            finally
+            {
+                _listChildConnect.Remove(childClientName);
+                Console.WriteLine($"Child client of {_connectionId} disconnected: {childClientName}");
+            }
         }
 
 
 
-        public override Task OnDisconnectedAsync(Exception? exception)
+        public override async Task OnDisconnectedAsync(Exception? exception)
         {
+
+            await base.OnDisconnectedAsync(exception);
 
             _listener?.Stop();
 
-            Console.WriteLine($"New client disconnect {_connectionId}");
-            return base.OnDisconnectedAsync(exception);
+            Console.WriteLine($"Client disconnected {_connectionId}");
+
+            Console.WriteLine($"Closed local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context.ConnectionId}");
+
         }
 
 
@@ -128,7 +152,10 @@ namespace PortForwardServer
                 await childClient.GetStream().WriteAsync(Convert.FromBase64String(bufferString));
 
             }
-            catch (Exception ex) { Console.WriteLine(ex); }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
 
         }
 
