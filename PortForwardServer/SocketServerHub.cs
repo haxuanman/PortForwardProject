@@ -37,7 +37,12 @@ namespace PortForwardServer
                 HandleParentClientProxy(Context, Clients);
 
             }
-            catch (Exception ex) { Console.WriteLine(ex); }
+            catch (Exception ex)
+            {
+                await File.AppendAllTextAsync("logs.txt", ex.ToString()); 
+                
+                Console.WriteLine(ex);
+            }
 
         }
 
@@ -62,20 +67,20 @@ namespace PortForwardServer
 
                     var childClientName = ((IPEndPoint?)client?.Client.LocalEndPoint)?.ToString() ?? string.Empty;
 
-                    await clients.Client(context.ConnectionId).RequestChildClient(childClientName);
+                    await clients.Caller.RequestChildClient(childClientName);
 
                     _listChildConnect[childClientName] = client!;
 
-                    Console.WriteLine($"New Child client of {_connectionId} connected: {childClientName}");
+                    Console.WriteLine($"New child client of {_connectionId} connected: {childClientName}");
 
-                    await HandleClient(childClientName, client!, clients);
-
-                    //HandleClientProxy(childClientName, client!, clients);
+                    await HandleChildClient(childClientName, client!, clients);
 
                 }
             }
             catch (Exception ex)
             {
+                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
                 Console.WriteLine(ex);
             }
 
@@ -83,39 +88,48 @@ namespace PortForwardServer
 
 
 
-        async void HandleClientProxy(string childClientName, TcpClient client, IHubCallerClients<ISocketServerHub> clients)
-        {
-            await HandleClient(childClientName, client!, clients);
-        }
-
-
-
-        async Task HandleClient(string childClientName, TcpClient client, IHubCallerClients<ISocketServerHub> clients)
+        async Task HandleChildClient(string childClientName, TcpClient client, IHubCallerClients<ISocketServerHub> clients)
         {
             try
             {
+                var bufferSize = client.ReceiveBufferSize;
+
                 while (client?.Connected ?? false)
                 {
 
-                    var stream = client.GetStream();
+                    var buffer = new byte[bufferSize];
 
-                    var buffer = new byte[2048];
+                    var stream = client.GetStream();
 
                     var byteRead = await stream.ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
 
+                    Console.WriteLine($"{childClientName} {byteRead}");
+
                     buffer = buffer.Take(byteRead).ToArray();
 
-                    await clients.Client(_connectionId).ChildClientSocketRequest(childClientName, Convert.ToBase64String(buffer));
+                    var bufferString = Convert.ToBase64String(buffer);
+
+                    Console.WriteLine($"Request {childClientName}: {bufferString}");
+
+                    await clients.Caller.ChildClientSocketRequest(childClientName, bufferString);
 
                 }
-            } catch (Exception ex)
+
+                await File.AppendAllTextAsync("logs.txt", $"Child client of {_connectionId} disconnected: {childClientName} out");
+
+            }
+            catch (Exception ex)
             {
+                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
                 Console.WriteLine($"Child client {childClientName}: {ex.Message}");
             }
             finally
             {
+                await File.AppendAllTextAsync("logs.txt", $"Child client of {_connectionId} disconnected: {childClientName}");
+
                 _listChildConnect.Remove(childClientName);
                 Console.WriteLine($"Child client of {_connectionId} disconnected: {childClientName}");
             }
@@ -145,6 +159,8 @@ namespace PortForwardServer
             try
             {
 
+                await File.AppendAllTextAsync("logs.txt", "ChildClientSocketReponse");
+
                 var childClient = _listChildConnect[childClientName];
 
                 if (!(childClient?.Connected ?? false)) return;
@@ -154,6 +170,7 @@ namespace PortForwardServer
             }
             catch (Exception ex)
             {
+                await File.AppendAllTextAsync("logs.txt", ex.ToString());
                 Console.WriteLine(ex);
             }
 
