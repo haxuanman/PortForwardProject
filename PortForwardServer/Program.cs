@@ -1,4 +1,6 @@
-﻿namespace PortForwardServer
+﻿using Microsoft.AspNetCore.WebSockets;
+
+namespace PortForwardServer
 {
     public class Program
     {
@@ -17,10 +19,19 @@
 
                 builder.WebHost.ConfigureServices(services =>
                 {
+                    services.AddWebSockets(e =>
+                    {
+                        e.KeepAliveInterval = TimeSpan.FromSeconds(5);
+                    });
+
                     services.AddSignalR();
                 });
 
                 var app = builder.Build();
+
+                app.UseRouting();
+
+                app.UseWebSockets();
 
                 app.MapHub<SocketServerHub>("/ServerSocketHub");
 
