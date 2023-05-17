@@ -45,7 +45,7 @@ namespace PortForwardClient
 
             var client = new TcpClient();
 
-            await client.ConnectAsync("localhost", 5432);
+            await client.ConnectAsync("localhost", 3389);
 
             Console.WriteLine($"Create child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteChildClientName}");
 
@@ -80,9 +80,9 @@ namespace PortForwardClient
 
                     var byteRead = await stream.ReadAsync(buffer);
 
-                    Console.WriteLine($"{remoteChildClientName} {byteRead}");
-
                     if (byteRead == 0) continue;
+
+                    Console.WriteLine($"{remoteChildClientName} {byteRead}");
 
                     var bufferString = Convert.ToBase64String(buffer.Take(byteRead).ToArray());
 

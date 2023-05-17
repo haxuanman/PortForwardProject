@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using PortForwardServer.Dto;
 using System.Net;
 using System.Net.Sockets;
 
@@ -34,48 +35,11 @@ namespace PortForwardServer
 
                 _connectionId = Context.ConnectionId;
 
-                HandleParentClientProxy(Context, Clients);
-
-            }
-            catch (Exception ex)
-            {
-                await File.AppendAllTextAsync("logs.txt", ex.ToString()); 
-                
-                Console.WriteLine(ex);
-            }
-
-        }
-
-
-
-        async void HandleParentClientProxy(HubCallerContext context, IHubCallerClients<ISocketServerHub> clients)
-        {
-            await HandleParentClient(context, clients);
-        }
-
-
-
-        async Task HandleParentClient(HubCallerContext context, IHubCallerClients<ISocketServerHub> clients)
-        {
-
-            try
-            {
-
-                while (_listener != null)
+                _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
                 {
-                    TcpClient client = _listener.AcceptTcpClient();
+                    Clients = Clients
+                });
 
-                    var childClientName = ((IPEndPoint?)client?.Client.LocalEndPoint)?.ToString() ?? string.Empty;
-
-                    await clients.Caller.RequestChildClient(childClientName);
-
-                    _listChildConnect[childClientName] = client!;
-
-                    Console.WriteLine($"New child client of {_connectionId} connected: {childClientName}");
-
-                    await HandleChildClient(childClientName, client!, clients);
-
-                }
             }
             catch (Exception ex)
             {
@@ -88,11 +52,46 @@ namespace PortForwardServer
 
 
 
-        async Task HandleChildClient(string childClientName, TcpClient client, IHubCallerClients<ISocketServerHub> clients)
+        private void HandleIncomingConnection(IAsyncResult result)
         {
+
+            var states = result.AsyncState as HandleIncomingConnectionStateDto;
+
+            var client = _listener?.EndAcceptTcpClient(result);
+
+            _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
+            {
+                Clients = Clients
+            });
+
+            HandleChildClientProxy(client!, states!.Clients);
+
+        }
+
+
+
+        async void HandleChildClientProxy(TcpClient client, IHubCallerClients<ISocketServerHub> clients)
+        {
+            await HandleChildClient(client, clients);
+        }
+
+
+
+        async Task HandleChildClient(TcpClient client, IHubCallerClients<ISocketServerHub> clients)
+        {
+            var childClientName = string.Empty;
             try
             {
-                var bufferSize = client.ReceiveBufferSize;
+
+                childClientName = ((IPEndPoint?)client?.Client.LocalEndPoint)?.ToString() ?? string.Empty;
+
+                await clients.Caller.RequestChildClient(childClientName);
+
+                _listChildConnect[childClientName] = client!;
+
+                Console.WriteLine($"New child client of {_connectionId} connected: {childClientName}");
+
+                var bufferSize = client?.ReceiveBufferSize ?? 2048;
 
                 while (client?.Connected ?? false)
                 {
