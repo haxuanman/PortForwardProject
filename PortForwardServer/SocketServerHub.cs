@@ -36,15 +36,15 @@ namespace PortForwardServer
 
                 var requestLocalPort = Convert.ToInt32(requestLocalPortQuery.FirstOrDefault(string.Empty));
 
-                Console.WriteLine($"New client connect {Context?.ConnectionId}");
+                _logger.LogInformation($"New client connect {Context?.ConnectionId}");
 
                 _listener = new TcpListener(IPAddress.Any, requestLocalPort);
 
                 _listener?.Start();
 
-                Console.WriteLine($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context?.ConnectionId}");
+                _logger.LogInformation($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context?.ConnectionId}");
 
-                _connectionId = Context?.ConnectionId;
+                _connectionId = Context?.ConnectionId ?? string.Empty;
 
                 _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
                 {
@@ -54,10 +54,7 @@ namespace PortForwardServer
             }
             catch (Exception ex)
             {
-
                 _logger.LogError(ex.ToString());
-
-                Console.WriteLine(ex);
             }
 
         }
@@ -101,7 +98,7 @@ namespace PortForwardServer
 
                 _listChildConnect[childClientName] = client!;
 
-                Console.WriteLine($"New child client of {_connectionId} connected: {childClientName}");
+                _logger.LogInformation($"New child client of {_connectionId} connected: {childClientName}");
 
                 var bufferSize = client?.ReceiveBufferSize ?? 2048;
 
@@ -116,13 +113,11 @@ namespace PortForwardServer
 
                     if (byteRead == 0) continue;
 
-                    Console.WriteLine($"{childClientName} {byteRead}");
-
                     buffer = buffer.Take(byteRead).ToArray();
 
                     var bufferString = Convert.ToBase64String(buffer);
 
-                    Console.WriteLine($"Request {childClientName}: {bufferString}");
+                    _logger.LogDebug($"Request {childClientName}: {bufferString}");
 
                     await clients.Caller.ChildClientSocketRequest(childClientName, bufferString);
 
@@ -134,19 +129,18 @@ namespace PortForwardServer
             catch (Exception ex)
             {
 
-                _logger.LogError(ex.ToString());
+                _logger.LogInformation($"Child client {childClientName}: {ex.Message}");
 
-                Console.WriteLine($"Child client {childClientName}: {ex.Message}");
+                _logger.LogError(ex.ToString());
             }
             finally
             {
 
-                _logger.LogError($"Child client of {_connectionId} disconnected: {childClientName}");
-
                 await clients.Caller.CloseChildClient(childClientName);
 
                 _listChildConnect.Remove(childClientName);
-                Console.WriteLine($"Child client of {_connectionId} disconnected: {childClientName}");
+
+                _logger.LogInformation($"Child client of {_connectionId} disconnected: {childClientName}");
             }
         }
 
@@ -157,12 +151,11 @@ namespace PortForwardServer
 
             await base.OnDisconnectedAsync(exception);
 
+            _logger.LogInformation($"Client disconnected {_connectionId}");
+
+            _logger.LogInformation($"Closed local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context.ConnectionId}");
+
             _listener?.Stop();
-
-            Console.WriteLine($"Client disconnected {_connectionId}");
-
-            Console.WriteLine($"Closed local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context.ConnectionId}");
-
         }
 
 
@@ -183,10 +176,7 @@ namespace PortForwardServer
             }
             catch (Exception ex)
             {
-
                 _logger.LogError(ex.ToString());
-
-                Console.WriteLine(ex);
             }
 
         }

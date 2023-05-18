@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NLog.Web;
 using PortForwardClient.Common;
 using System.Net;
 using System.Net.Sockets;
@@ -28,13 +29,7 @@ namespace PortForwardClient
             _configuration = configuration;
 
             _connection = new HubConnectionBuilder()
-                .ConfigureLogging(logging =>
-                {
-                    // Log to the Console
-                    logging.AddConsole();
-
-                    logging.SetMinimumLevel(LogLevel.Information);
-                })
+                .ConfigureLogging(logging => logging.AddNLogWeb())
                 .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy(TimeSpan.FromSeconds(_configuration.GetValue<int>("RetryTimeSecond"))))
                 .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub?requestServerLocalPort={_configuration.GetValue<int>("RequestServerLocalPort")}")
                 .Build();
@@ -59,14 +54,14 @@ namespace PortForwardClient
 
                 var childClient = _listChildConnect[remoteChildClientName];
 
-                Console.WriteLine($"Closed child client port {((IPEndPoint?)childClient?.Client?.LocalEndPoint)?.Port} for client {remoteChildClientName}");
+                _logger.LogInformation($"Closed child client port {((IPEndPoint?)childClient?.Client?.LocalEndPoint)?.Port} for client {remoteChildClientName}");
 
                 childClient?.Close();
 
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                _logger.LogError(ex.Message);
             }
 
             return Task.CompletedTask;
@@ -84,7 +79,7 @@ namespace PortForwardClient
 
             await client.ConnectAsync("localhost", _configuration.GetValue<int>("ClientSharedLocalPort"));
 
-            Console.WriteLine($"Create child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteChildClientName}");
+            _logger.LogInformation($"Create child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteChildClientName}");
 
             _listChildConnect[remoteChildClientName] = client!;
 
@@ -119,11 +114,11 @@ namespace PortForwardClient
 
                     if (byteRead == 0) continue;
 
-                    Console.WriteLine($"{remoteChildClientName} {byteRead}");
+                    _logger.LogDebug($"{remoteChildClientName} {byteRead}");
 
                     var bufferString = Convert.ToBase64String(buffer.Take(byteRead).ToArray());
 
-                    Console.WriteLine($"Reponse {remoteChildClientName}: {bufferString}");
+                    _logger.LogDebug($"Reponse {remoteChildClientName}: {bufferString}");
 
                     await _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString });
 
@@ -132,9 +127,9 @@ namespace PortForwardClient
             catch (Exception ex)
             {
 
-                _logger.LogError(ex.ToString());
+                _logger.LogInformation(ex.Message);
 
-                Console.WriteLine(ex.Message);
+                _logger.LogError(ex.ToString());
             }
         }
 
@@ -156,10 +151,7 @@ namespace PortForwardClient
             }
             catch (Exception ex)
             {
-
                 _logger.LogError(ex.ToString());
-
-                Console.WriteLine(ex);
             }
 
         }
@@ -181,7 +173,7 @@ namespace PortForwardClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
+                _logger.LogError(ex.ToString());
             }
         }
     }
