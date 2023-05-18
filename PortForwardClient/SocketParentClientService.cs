@@ -35,7 +35,7 @@ namespace PortForwardClient
 
                     logging.SetMinimumLevel(LogLevel.Information);
                 })
-                .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy())
+                .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy(TimeSpan.FromSeconds(_configuration.GetValue<int>("RetryTimeSecond"))))
                 .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub?requestServerLocalPort={_configuration.GetValue<int>("RequestServerLocalPort")}")
                 .Build();
 

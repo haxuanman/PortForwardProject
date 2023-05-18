@@ -5,7 +5,7 @@ namespace PortForwardClient.Common
     internal class SignalrAlwaysRetryPolicy : IRetryPolicy
     {
 
-        private readonly TimeSpan _delayTime;
+        private readonly TimeSpan _delayTime = TimeSpan.FromSeconds(10);
 
         public SignalrAlwaysRetryPolicy() { }
 
