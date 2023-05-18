@@ -4,6 +4,6 @@ namespace PortForwardServer.Dto
 {
     public class HandleIncomingConnectionStateDto
     {
-        public IHubCallerClients<ISocketServerHub> Clients { get; set; }
+        public IHubCallerClients<ISocketServerHub>? Clients { get; set; }
     }
 }

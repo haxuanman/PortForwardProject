@@ -12,7 +12,7 @@ namespace PortForwardClient
     {
 
         private readonly HubConnection _connection;
-        private static Dictionary<string, TcpClient> _listChildConnect = new();
+        private readonly static Dictionary<string, TcpClient> _listChildConnect = new();
         private readonly IConfiguration _configuration;
 
 
@@ -128,10 +128,6 @@ namespace PortForwardClient
                 await File.AppendAllTextAsync("logs.txt", ex.ToString());
 
                 Console.WriteLine(ex.Message);
-            }
-            finally
-            {
-                Console.WriteLine($"Closed child client port {((IPEndPoint?)client?.Client?.LocalEndPoint)?.Port} for client {remoteChildClientName}");
             }
         }
 
