@@ -119,7 +119,7 @@ namespace PortForwardClient
 
                     Console.WriteLine($"Reponse {remoteChildClientName}: {bufferString}");
 
-                    await _connection.InvokeCoreAsync("ChildClientSocketReponse", new[] { remoteChildClientName, bufferString });
+                    await _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString });
 
                 }
             }

@@ -7,7 +7,7 @@
 
         Task CloseChildClient(string childClientName);
 
-        Task ChildClientSocketRequest(string remoteClientName, string buffer);
+        Task ChildClientSocketRequest(string remoteClientName, string bufferString);
 
     }
 }

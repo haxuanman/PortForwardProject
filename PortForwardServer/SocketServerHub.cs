@@ -67,7 +67,7 @@ namespace PortForwardServer
                 Clients = Clients
             });
 
-            HandleChildClientProxy(client!, states!.Clients);
+            HandleChildClientProxy(client!, states!.Clients!);
 
         }
 
@@ -162,7 +162,7 @@ namespace PortForwardServer
 
             try
             {
-
+                
                 await File.AppendAllTextAsync("logs.txt", "ChildClientSocketReponse");
 
                 var childClient = _listChildConnect[childClientName];
