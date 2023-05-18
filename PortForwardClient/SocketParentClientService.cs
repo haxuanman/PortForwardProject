@@ -13,10 +13,13 @@ namespace PortForwardClient
 
         private readonly HubConnection _connection;
         private static Dictionary<string, TcpClient> _listChildConnect = new();
+        private readonly IConfiguration _configuration;
 
 
         public SocketParentClientService(IConfiguration configuration)
         {
+
+            _configuration = configuration;
 
             _connection = new HubConnectionBuilder()
                 .ConfigureLogging(logging =>
@@ -27,12 +30,40 @@ namespace PortForwardClient
                     logging.SetMinimumLevel(LogLevel.Information);
                 })
                 .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy())
-                .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub")
+                .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub?requestServerLocalPort={_configuration.GetValue<int>("RequestServerLocalPort")}")
                 .Build();
 
             _connection.On("RequestChildClient", new Type[] { typeof(string) }, RequestChildClient, new object());
 
             _connection.On("ChildClientSocketRequest", new Type[] { typeof(string), typeof(string) }, ChildClientSocketRequest, new object());
+
+            _connection.On("CloseChildClient", new Type[] { typeof(string) }, CloseChildClient, new object());
+
+        }
+
+
+
+        Task CloseChildClient(object?[] args0, object arg1)
+        {
+
+            var remoteChildClientName = args0[0]?.ToString() ?? string.Empty;
+
+            try
+            {
+
+                var childClient = _listChildConnect[remoteChildClientName];
+
+                Console.WriteLine($"Closed child client port {((IPEndPoint?)childClient?.Client?.LocalEndPoint)?.Port} for client {remoteChildClientName}");
+
+                childClient?.Close();
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
+            return Task.CompletedTask;
 
         }
 
@@ -45,7 +76,7 @@ namespace PortForwardClient
 
             var client = new TcpClient();
 
-            await client.ConnectAsync("localhost", 3389);
+            await client.ConnectAsync("localhost", _configuration.GetValue<int>("ClientSharedLocalPort"));
 
             Console.WriteLine($"Create child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteChildClientName}");
 
@@ -90,19 +121,17 @@ namespace PortForwardClient
 
                     await _connection.InvokeCoreAsync("ChildClientSocketReponse", new[] { remoteChildClientName, bufferString });
 
-                    Console.WriteLine("Invoke");
-
                 }
             }
             catch (Exception ex)
             {
                 await File.AppendAllTextAsync("logs.txt", ex.ToString());
 
-                Console.WriteLine(ex);
+                Console.WriteLine(ex.Message);
             }
             finally
             {
-                Console.WriteLine($"Closed child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteChildClientName}");
+                Console.WriteLine($"Closed child client port {((IPEndPoint?)client?.Client?.LocalEndPoint)?.Port} for client {remoteChildClientName}");
             }
         }
 
@@ -145,7 +174,8 @@ namespace PortForwardClient
             try
             {
                 await _connection.StopAsync();
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }

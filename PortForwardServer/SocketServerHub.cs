@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Primitives;
 using PortForwardServer.Dto;
 using System.Net;
 using System.Net.Sockets;
@@ -8,15 +9,9 @@ namespace PortForwardServer
     public class SocketServerHub : Hub<ISocketServerHub>
     {
 
-        private readonly TcpListener? _listener;
-        private string _connectionId;
+        private TcpListener _listener = new TcpListener(IPAddress.Any, 0);
+        private string _connectionId = string.Empty;
         private static Dictionary<string, TcpClient> _listChildConnect = new();
-
-
-        public SocketServerHub()
-        {
-            _listener = new TcpListener(IPAddress.Any, 0);
-        }
 
 
 
@@ -27,13 +22,21 @@ namespace PortForwardServer
             {
                 await base.OnConnectedAsync();
 
-                Console.WriteLine($"New client connect {Context.ConnectionId}");
+                var requestLocalPortQuery = new StringValues();
+
+                Context?.GetHttpContext()?.Request.Query.TryGetValue("RequestServerLocalPort", out requestLocalPortQuery);
+
+                var requestLocalPort = Convert.ToInt32(requestLocalPortQuery.FirstOrDefault(string.Empty));
+
+                Console.WriteLine($"New client connect {Context?.ConnectionId}");
+
+                _listener = new TcpListener(IPAddress.Any, requestLocalPort);
 
                 _listener?.Start();
 
-                Console.WriteLine($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context.ConnectionId}");
+                Console.WriteLine($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context?.ConnectionId}");
 
-                _connectionId = Context.ConnectionId;
+                _connectionId = Context?.ConnectionId;
 
                 _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
                 {
@@ -83,7 +86,7 @@ namespace PortForwardServer
             try
             {
 
-                childClientName = ((IPEndPoint?)client?.Client.LocalEndPoint)?.ToString() ?? string.Empty;
+                childClientName = ((IPEndPoint?)client?.Client.RemoteEndPoint)?.ToString() ?? string.Empty;
 
                 await clients.Caller.RequestChildClient(childClientName);
 
@@ -128,6 +131,8 @@ namespace PortForwardServer
             finally
             {
                 await File.AppendAllTextAsync("logs.txt", $"Child client of {_connectionId} disconnected: {childClientName}");
+
+                await clients.Caller.CloseChildClient(childClientName);
 
                 _listChildConnect.Remove(childClientName);
                 Console.WriteLine($"Child client of {_connectionId} disconnected: {childClientName}");
