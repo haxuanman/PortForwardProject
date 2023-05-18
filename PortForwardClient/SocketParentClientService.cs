@@ -25,8 +25,6 @@ namespace PortForwardClient
 
             _logger = logger;
 
-            _logger.LogError("test");
-
             _configuration = configuration;
 
             _connection = new HubConnectionBuilder()
