@@ -12,6 +12,14 @@ namespace PortForwardServer
         private TcpListener _listener = new TcpListener(IPAddress.Any, 0);
         private string _connectionId = string.Empty;
         private static Dictionary<string, TcpClient> _listChildConnect = new();
+        private readonly ILogger<SocketServerHub> _logger;
+
+
+
+        public SocketServerHub(ILogger<SocketServerHub> logger)
+        {
+            _logger = logger;
+        }
 
 
 
@@ -46,7 +54,8 @@ namespace PortForwardServer
             }
             catch (Exception ex)
             {
-                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
+                _logger.LogError(ex.ToString());
 
                 Console.WriteLine(ex);
             }
@@ -119,18 +128,20 @@ namespace PortForwardServer
 
                 }
 
-                await File.AppendAllTextAsync("logs.txt", $"Child client of {_connectionId} disconnected: {childClientName} out");
+                _logger.LogInformation($"Child client of {_connectionId} disconnected: {childClientName} out");
 
             }
             catch (Exception ex)
             {
-                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
+                _logger.LogError(ex.ToString());
 
                 Console.WriteLine($"Child client {childClientName}: {ex.Message}");
             }
             finally
             {
-                await File.AppendAllTextAsync("logs.txt", $"Child client of {_connectionId} disconnected: {childClientName}");
+
+                _logger.LogError($"Child client of {_connectionId} disconnected: {childClientName}");
 
                 await clients.Caller.CloseChildClient(childClientName);
 
@@ -162,8 +173,6 @@ namespace PortForwardServer
 
             try
             {
-                
-                await File.AppendAllTextAsync("logs.txt", "ChildClientSocketReponse");
 
                 var childClient = _listChildConnect[childClientName];
 
@@ -174,7 +183,9 @@ namespace PortForwardServer
             }
             catch (Exception ex)
             {
-                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
+                _logger.LogError(ex.ToString());
+
                 Console.WriteLine(ex);
             }
 

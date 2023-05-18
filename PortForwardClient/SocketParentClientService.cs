@@ -14,10 +14,18 @@ namespace PortForwardClient
         private readonly HubConnection _connection;
         private readonly static Dictionary<string, TcpClient> _listChildConnect = new();
         private readonly IConfiguration _configuration;
+        private readonly ILogger _logger;
 
 
-        public SocketParentClientService(IConfiguration configuration)
+        public SocketParentClientService(
+            IConfiguration configuration,
+            ILogger<SocketParentClientService> logger
+            )
         {
+
+            _logger = logger;
+
+            _logger.LogError("test");
 
             _configuration = configuration;
 
@@ -125,7 +133,8 @@ namespace PortForwardClient
             }
             catch (Exception ex)
             {
-                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
+                _logger.LogError(ex.ToString());
 
                 Console.WriteLine(ex.Message);
             }
@@ -149,7 +158,8 @@ namespace PortForwardClient
             }
             catch (Exception ex)
             {
-                await File.AppendAllTextAsync("logs.txt", ex.ToString());
+
+                _logger.LogError(ex.ToString());
 
                 Console.WriteLine(ex);
             }

@@ -1,6 +1,9 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using NLog;
+using NLog.Web;
 
 namespace PortForwardClient
 {
@@ -13,21 +16,27 @@ namespace PortForwardClient
                 Console.WriteLine("Hello, Client!");
 
                 var hostBuilder = new HostBuilder()
-                        .ConfigureServices((hostContext, services) =>
-                        {
-                            services.AddHostedService<SocketParentClientService>();
-                        })
-                        .ConfigureAppConfiguration(e =>
-                        {
-                            e.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-                        })
-                        .Build();
+                    .UseNLog()
+                    .ConfigureServices((hostContext, services) =>
+                    {
+                        services.AddHostedService<SocketParentClientService>();
+                    })
+                    .ConfigureAppConfiguration(e =>
+                    {
+                        e.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                    })
+                    .ConfigureLogging(e => e.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace).AddConsole().AddNLogWeb("nlog.config"))
+                    .UseConsoleLifetime()
+                    .Build();
 
                 await hostBuilder.RunAsync();
 
                 Console.WriteLine("Goodbye, Client!");
 
-            } catch (Exception ex) { Console.WriteLine(ex); }
+            } catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.WebSockets;
+using NLog.Web;
 
 namespace PortForwardServer
 {
@@ -11,6 +12,8 @@ namespace PortForwardServer
                 Console.WriteLine("Hello, Server!");
 
                 var builder = WebApplication.CreateBuilder(args);
+
+                builder.Host.UseNLog();
 
                 builder.WebHost.ConfigureAppConfiguration(webBuilder =>
                 {
