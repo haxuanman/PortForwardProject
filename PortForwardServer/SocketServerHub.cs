@@ -117,8 +117,6 @@ namespace PortForwardServer
 
                     var bufferString = Convert.ToBase64String(buffer);
 
-                    _logger.LogDebug($"Request {childClientName}: {bufferString}");
-
                     await clients.Caller.ChildClientSocketRequest(childClientName, bufferString);
 
                 }
@@ -149,11 +147,9 @@ namespace PortForwardServer
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
 
+            _logger.LogInformation($"Client disconnected {Context?.ConnectionId}");
+
             await base.OnDisconnectedAsync(exception);
-
-            _logger.LogInformation($"Client disconnected {_connectionId}");
-
-            _logger.LogInformation($"Closed local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context.ConnectionId}");
 
             _listener?.Stop();
         }

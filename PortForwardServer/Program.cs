@@ -3,7 +3,7 @@ using NLog.Web;
 
 namespace PortForwardServer
 {
-    public class Program
+    public static class Program
     {
         static async Task Main(string[] args)
         {
@@ -38,7 +38,7 @@ namespace PortForwardServer
 
                 app.MapHub<SocketServerHub>("/ServerSocketHub");
 
-                app.Run();
+                await app.RunAsync();
 
                 Console.WriteLine("Goodbye, Server!");
 

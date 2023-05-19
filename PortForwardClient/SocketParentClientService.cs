@@ -30,7 +30,7 @@ namespace PortForwardClient
 
             _connection = new HubConnectionBuilder()
                 .ConfigureLogging(logging => logging.AddNLogWeb())
-                .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy(TimeSpan.FromSeconds(_configuration.GetValue<int>("RetryTimeSecond"))))
+                //.WithAutomaticReconnect(new SignalrAlwaysRetryPolicy(TimeSpan.FromSeconds(_configuration.GetValue<int>("RetryTimeSecond"))))
                 .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub?requestServerLocalPort={_configuration.GetValue<int>("RequestServerLocalPort")}")
                 .Build();
 
@@ -114,11 +114,7 @@ namespace PortForwardClient
 
                     if (byteRead == 0) continue;
 
-                    _logger.LogDebug($"{remoteChildClientName} {byteRead}");
-
                     var bufferString = Convert.ToBase64String(buffer.Take(byteRead).ToArray());
-
-                    _logger.LogDebug($"Reponse {remoteChildClientName}: {bufferString}");
 
                     await _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString });
 

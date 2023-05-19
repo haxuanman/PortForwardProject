@@ -2,12 +2,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NLog;
 using NLog.Web;
 
 namespace PortForwardClient
 {
-    public class Program
+    public static class Program
     {
         static async Task Main(string[] args)
         {
