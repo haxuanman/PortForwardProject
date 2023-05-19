@@ -16,6 +16,8 @@ namespace PortForwardClient
         private readonly static Dictionary<string, TcpClient> _listChildConnect = new();
         private readonly IConfiguration _configuration;
         private readonly ILogger _logger;
+        private readonly object _lockerSend = new object();
+        private readonly object _lockerReviced = new object();
 
 
         public SocketParentClientService(
@@ -101,7 +103,7 @@ namespace PortForwardClient
             try
             {
 
-                var bufferSize = client!.ReceiveBufferSize;
+                var bufferSize = Math.Min(8192, client!.ReceiveBufferSize);
 
                 while (client?.Connected ?? false)
                 {
@@ -116,7 +118,12 @@ namespace PortForwardClient
 
                     var bufferString = Convert.ToBase64String(buffer.Take(byteRead).ToArray());
 
-                    await _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString });
+                    //_logger.LogInformation($"Send | {remoteChildClientName} | {byteRead} | {bufferString}");
+
+                    lock (_lockerSend)
+                    {
+                        _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString }).Wait();
+                    }
 
                 }
             }
@@ -131,7 +138,7 @@ namespace PortForwardClient
 
 
 
-        async Task ChildClientSocketRequest(object?[] args, object input)
+        Task ChildClientSocketRequest(object?[] args, object input)
         {
             try
             {
@@ -142,13 +149,18 @@ namespace PortForwardClient
 
                 var childClient = _listChildConnect[remoteClientName];
 
-                await childClient.GetStream().WriteAsync(buffer);
+                lock (_lockerReviced)
+                {
+                    childClient.GetStream().Write(buffer);
+                }
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
             }
+
+            return Task.CompletedTask;
 
         }
 

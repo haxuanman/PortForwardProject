@@ -13,6 +13,8 @@ namespace PortForwardServer
         private string _connectionId = string.Empty;
         private static Dictionary<string, TcpClient> _listChildConnect = new();
         private readonly ILogger<SocketServerHub> _logger;
+        private readonly object _lockerSend = new object();
+        private readonly object _lockerReviced = new object();
 
 
 
@@ -100,7 +102,7 @@ namespace PortForwardServer
 
                 _logger.LogInformation($"New child client of {_connectionId} connected: {childClientName}");
 
-                var bufferSize = client?.ReceiveBufferSize ?? 2048;
+                var bufferSize = Math.Min(8192, client?.ReceiveBufferSize ?? 8192);
 
                 while (client?.Connected ?? false)
                 {
@@ -117,11 +119,14 @@ namespace PortForwardServer
 
                     var bufferString = Convert.ToBase64String(buffer);
 
-                    await clients.Caller.ChildClientSocketRequest(childClientName, bufferString);
+                    //_logger.LogInformation($"Send | {childClientName} | {byteRead} | {bufferString}");
+
+                    lock (_lockerSend)
+                    {
+                        clients.Caller.ChildClientSocketRequest(childClientName, bufferString).Wait();
+                    }
 
                 }
-
-                _logger.LogInformation($"Child client of {_connectionId} disconnected: {childClientName} out");
 
             }
             catch (Exception ex)
@@ -157,7 +162,7 @@ namespace PortForwardServer
 
 
         [HubMethodName("ChildClientSocketReponse")]
-        public async Task ChildClientSocketReponse(string childClientName, string bufferString)
+        public void ChildClientSocketReponse(string childClientName, string bufferString)
         {
 
             try
@@ -167,7 +172,10 @@ namespace PortForwardServer
 
                 if (!(childClient?.Connected ?? false)) return;
 
-                await childClient.GetStream().WriteAsync(Convert.FromBase64String(bufferString));
+                lock (_lockerReviced)
+                {
+                    childClient.GetStream().Write(Convert.FromBase64String(bufferString));
+                }
 
             }
             catch (Exception ex)
