@@ -121,10 +121,12 @@ namespace PortForwardServer
 
                     //_logger.LogInformation($"Send | {childClientName} | {byteRead} | {bufferString}");
 
-                    lock (_lockerSend)
-                    {
-                        clients.Caller.ChildClientSocketRequest(childClientName, bufferString).Wait();
-                    }
+                    //lock (_lockerSend)
+                    //{
+                    //    clients.Caller.ChildClientSocketRequest(childClientName, bufferString).Wait();
+                    //}
+
+                    await clients.Caller.ChildClientSocketRequest(childClientName, bufferString);
 
                 }
 
