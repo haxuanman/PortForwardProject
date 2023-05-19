@@ -161,6 +161,8 @@ namespace PortForwardClient
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             await _connection.StartAsync();
+
+            _logger.LogInformation($"Connected to server!");
         }
 
 
