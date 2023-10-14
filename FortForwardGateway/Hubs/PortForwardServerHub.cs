@@ -65,7 +65,7 @@ namespace FortForwardGateway.Hubs
 
             _logger.LogInformation($"Close client {Context?.ConnectionId}");
 
-            var userName = Context?.GetHttpContext()?.Request.Headers["userName"].ToString()?.ToLower() ?? string.Empty;
+            var userName = Context?.GetHttpContext()?.Request.Query["userName"].ToString()?.ToLower() ?? string.Empty;
 
             ListUsers.Remove(userName, out _);
 
