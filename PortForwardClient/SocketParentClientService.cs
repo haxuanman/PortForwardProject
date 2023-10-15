@@ -42,7 +42,7 @@ namespace PortForwardClient
 
             _connection.On<Guid>("DeleteSessionAsync", DeleteSessionAsync);
 
-            _connection.On<Guid, string>("SendDatasync", SendDatasync);
+            _connection.On<Guid, string>("SendData", SendData);
 
         }
 
@@ -112,12 +112,12 @@ namespace PortForwardClient
 
 
 
-        public async Task SendDatasync(Guid sessionId, string data)
+        public void SendData(Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
+            _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
         }
 
     }

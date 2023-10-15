@@ -56,14 +56,12 @@ namespace PortForwardServer.Services
 
                 var bufferSize = Math.Min(8192, _client?.ReceiveBufferSize ?? 8192);
 
+                var buffer = new byte[bufferSize];
+
                 while (_client?.Connected ?? false)
                 {
 
-                    var buffer = new byte[bufferSize];
-
-                    var stream = _client.GetStream();
-
-                    var byteRead = await stream.ReadAsync(buffer);
+                    var byteRead = _client.GetStream().Read(buffer, 0, bufferSize);
 
                     if (byteRead == 0) continue;
 

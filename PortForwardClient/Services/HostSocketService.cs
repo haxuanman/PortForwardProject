@@ -57,14 +57,12 @@ namespace PortForwardClient.Services
 
                 var bufferSize = Math.Min(8192, _client?.ReceiveBufferSize ?? 8192);
 
+                var buffer = new byte[bufferSize];
+
                 while (_client?.Connected ?? false)
                 {
 
-                    var buffer = new byte[bufferSize];
-
-                    var stream = _client.GetStream();
-
-                    var byteRead = await stream.ReadAsync(buffer);
+                    var byteRead = _client.GetStream().Read(buffer, 0, bufferSize);
 
                     if (byteRead == 0) continue;
 
@@ -74,10 +72,10 @@ namespace PortForwardClient.Services
 
                     //_logger.LogInformation($"{_hubClientConfig.UserName} -> {_hubClientConfig.HostUserName} {_sessionId}: {bufferString}");
 
-                    await _connection.SendAsync(
+                    await _connection.SendCoreAsync(
                         "SendDatasync",
-                        _sessionId,
-                        bufferString);
+                        new object[] { _sessionId, bufferString }
+                        );
 
                 }
 

@@ -99,13 +99,13 @@ namespace PortForwardServer
 
 
 
-        [HubMethodName("SendDatasync")]
-        public async Task SendDatasync(Guid sessionId, string data)
+        [HubMethodName("SendData")]
+        public void SendData(Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
+            _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
         }
 
     }
