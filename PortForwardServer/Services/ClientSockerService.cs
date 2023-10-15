@@ -1,4 +1,5 @@
 ﻿using System.Net.Sockets;
+using System;
 
 namespace PortForwardServer.Services
 {
@@ -49,25 +50,22 @@ namespace PortForwardServer.Services
         {
 
             _logger.LogInformation($"New session {_sessionId}: {_client?.Client.RemoteEndPoint}");
+
             try
             {
 
                 await _caller.CreateSessionAsync(_sessionId);
 
-                var bufferSize = Math.Min(8192, _client?.ReceiveBufferSize ?? 8192);
-
-                var buffer = new byte[bufferSize];
+                var buffer = new Memory<byte>();
 
                 while (_client?.Connected ?? false)
                 {
 
-                    var byteRead = _client.GetStream().Read(buffer, 0, bufferSize);
+                    var byteRead = await _client.GetStream().ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
 
-                    //_logger.LogInformation($"{_hubClientConfig.UserName} -> {_hubClientConfig.HostUserName} {_sessionId}: {bufferString}");
-
-                    await _caller.SendDatasync(_sessionId, Convert.ToBase64String(buffer.Take(byteRead).ToArray()));
+                    await _caller.SendDatasync(_sessionId, Convert.ToBase64String(buffer[..byteRead].ToArray()));
 
                 }
             }

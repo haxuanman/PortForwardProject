@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
+using System;
 
 namespace PortForwardClient.Services
 {
@@ -55,27 +56,22 @@ namespace PortForwardClient.Services
             try
             {
 
-                var bufferSize = Math.Min(8192, _client?.ReceiveBufferSize ?? 8192);
-
-                var buffer = new byte[bufferSize];
+                var buffer = new Memory<byte>();
 
                 while (_client?.Connected ?? false)
                 {
 
-                    var byteRead = _client.GetStream().Read(buffer, 0, bufferSize);
+                    var byteRead = await _client.GetStream().ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
 
-                    buffer = buffer.Take(byteRead).ToArray();
-
-                    var bufferString = Convert.ToBase64String(buffer);
-
-                    //_logger.LogInformation($"{_hubClientConfig.UserName} -> {_hubClientConfig.HostUserName} {_sessionId}: {bufferString}");
-
                     await _connection.SendCoreAsync(
                         "SendDatasync",
-                        new object[] { _sessionId, bufferString }
-                        );
+                        new object[]
+                        {
+                            _sessionId,
+                            Convert.ToBase64String(buffer[..byteRead].ToArray())
+                        });
 
                 }
 
