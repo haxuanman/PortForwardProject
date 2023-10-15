@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Primitives;
 using PortForwardServer.Services;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 
@@ -11,7 +10,7 @@ namespace PortForwardServer
     {
 
         private TcpListener _listener = new TcpListener(IPAddress.Any, 0);
-        private static ConcurrentDictionary<Guid, TcpClient> _listSessionConnect = new();
+        private static readonly Dictionary<Guid, TcpClient> _listSessionConnect = new();
         private readonly ILogger _logger;
 
 
@@ -88,9 +87,14 @@ namespace PortForwardServer
 
             _logger.LogInformation($"Client disconnected {Context?.ConnectionId}");
 
+            try
+            {
+                _listener?.Stop();
+            }
+            catch { }
+
             await base.OnDisconnectedAsync(exception);
 
-            _listener?.Stop();
         }
 
 
@@ -101,10 +105,7 @@ namespace PortForwardServer
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            var client = _listSessionConnect.GetValueOrDefault(sessionId) ?? throw new Exception($"Client {sessionId} is null");
-
-
-            await client.GetStream().WriteAsync(Convert.FromBase64String(data));
+            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
         }
 
     }

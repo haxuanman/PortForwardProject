@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using NLog.Web;
 using PortForwardClient.Common;
 using PortForwardClient.Services;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 
@@ -18,7 +17,7 @@ namespace PortForwardClient
         private readonly IConfiguration _configuration;
         private readonly ILogger _logger;
 
-        private static ConcurrentDictionary<Guid, TcpClient> _listSessionConnect = new();
+        private static readonly Dictionary<Guid, TcpClient> _listSessionConnect = new();
 
 
         public SocketParentClientService(
@@ -118,11 +117,7 @@ namespace PortForwardClient
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            var client = _listSessionConnect.GetValueOrDefault(sessionId) ?? throw new Exception($"Client {sessionId} is null");
-
-            var dataValue = Convert.FromBase64String(data);
-
-            await client.GetStream().WriteAsync(dataValue);
+            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
         }
 
     }

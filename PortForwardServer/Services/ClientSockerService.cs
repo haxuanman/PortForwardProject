@@ -67,12 +67,9 @@ namespace PortForwardServer.Services
 
                     if (byteRead == 0) continue;
 
-                    buffer = buffer.Take(byteRead).ToArray();
-                    var bufferString = Convert.ToBase64String(buffer);
-
                     //_logger.LogInformation($"{_hubClientConfig.UserName} -> {_hubClientConfig.HostUserName} {_sessionId}: {bufferString}");
 
-                    await _caller.SendDatasync(_sessionId, bufferString);
+                    await _caller.SendDatasync(_sessionId, Convert.ToBase64String(buffer.Take(byteRead).ToArray()));
 
                 }
             }
