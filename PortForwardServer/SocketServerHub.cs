@@ -99,8 +99,8 @@ namespace PortForwardServer
 
 
 
-        [HubMethodName("SendData")]
-        public void SendData(Guid sessionId, string data)
+        [HubMethodName("SendDataAsync")]
+        public void SendDataAsync(Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");

@@ -56,7 +56,7 @@ namespace PortForwardClient.Services
             try
             {
 
-                var buffer = new Memory<byte>();
+                var buffer = new byte[8192];
 
                 while (_client?.Connected ?? false)
                 {
@@ -66,7 +66,7 @@ namespace PortForwardClient.Services
                     if (byteRead == 0) continue;
 
                     await _connection.SendCoreAsync(
-                        "SendDatasync",
+                        "SendDataAsync",
                         new object[]
                         {
                             _sessionId,

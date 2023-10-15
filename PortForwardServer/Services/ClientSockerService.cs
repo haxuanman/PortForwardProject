@@ -56,7 +56,7 @@ namespace PortForwardServer.Services
 
                 await _caller.CreateSessionAsync(_sessionId);
 
-                var buffer = new Memory<byte>();
+                var buffer = new byte[8192];
 
                 while (_client?.Connected ?? false)
                 {
@@ -65,7 +65,9 @@ namespace PortForwardServer.Services
 
                     if (byteRead == 0) continue;
 
-                    await _caller.SendDatasync(_sessionId, Convert.ToBase64String(buffer[..byteRead].ToArray()));
+                    _logger.LogError($"HandleClientSocketAsync: {Convert.ToBase64String(buffer[..byteRead].ToArray())}");
+
+                    await _caller.SendDataAsync(_sessionId, Convert.ToBase64String(buffer[..byteRead].ToArray()));
 
                 }
             }
