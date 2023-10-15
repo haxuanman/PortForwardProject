@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Primitives;
-using PortForwardServer.Dto;
+using PortForwardServer.Services;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 
@@ -10,11 +11,8 @@ namespace PortForwardServer
     {
 
         private TcpListener _listener = new TcpListener(IPAddress.Any, 0);
-        private string _connectionId = string.Empty;
-        private static Dictionary<string, TcpClient> _listChildConnect = new();
-        private readonly ILogger<SocketServerHub> _logger;
-        private readonly object _lockerSend = new object();
-        private readonly object _lockerReviced = new object();
+        private static ConcurrentDictionary<Guid, TcpClient> _listSessionConnect = new();
+        private readonly ILogger _logger;
 
 
 
@@ -30,6 +28,7 @@ namespace PortForwardServer
 
             try
             {
+
                 await base.OnConnectedAsync();
 
                 var requestLocalPortQuery = new StringValues();
@@ -46,12 +45,7 @@ namespace PortForwardServer
 
                 _logger.LogInformation($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context?.ConnectionId}");
 
-                _connectionId = Context?.ConnectionId ?? string.Empty;
-
-                _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
-                {
-                    Clients = Clients
-                });
+                _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), Clients.Caller);
 
             }
             catch (Exception ex)
@@ -66,87 +60,25 @@ namespace PortForwardServer
         private void HandleIncomingConnection(IAsyncResult result)
         {
 
-            var states = result.AsyncState as HandleIncomingConnectionStateDto;
+            var caller = result.AsyncState as ISocketServerHub;
 
             var client = _listener?.EndAcceptTcpClient(result);
 
-            _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
-            {
-                Clients = Clients
-            });
+            _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), caller);
 
-            HandleChildClientProxy(client!, states!.Clients!);
+            var sessionId = Guid.NewGuid();
 
-        }
+            _listSessionConnect.TryAdd(sessionId, client!);
 
+            var clientSockerService = new ClientSockerService(
+                logger: _logger,
+                caller: caller,
+                client: client,
+                sessionId: sessionId
+                );
 
+            clientSockerService.HandleClientSocketProxyAsync();
 
-        async void HandleChildClientProxy(TcpClient client, IHubCallerClients<ISocketServerHub> clients)
-        {
-            await HandleChildClient(client, clients);
-        }
-
-
-
-        async Task HandleChildClient(TcpClient client, IHubCallerClients<ISocketServerHub> clients)
-        {
-            var childClientName = string.Empty;
-            try
-            {
-
-                childClientName = ((IPEndPoint?)client?.Client.RemoteEndPoint)?.ToString() ?? string.Empty;
-
-                await clients.Caller.RequestChildClient(childClientName);
-
-                _listChildConnect[childClientName] = client!;
-
-                _logger.LogInformation($"New child client of {_connectionId} connected: {childClientName}");
-
-                var bufferSize = Math.Min(8192, client?.ReceiveBufferSize ?? 8192);
-
-                while (client?.Connected ?? false)
-                {
-
-                    var buffer = new byte[bufferSize];
-
-                    var stream = client.GetStream();
-
-                    var byteRead = await stream.ReadAsync(buffer);
-
-                    if (byteRead == 0) continue;
-
-                    buffer = buffer.Take(byteRead).ToArray();
-
-                    var bufferString = Convert.ToBase64String(buffer);
-
-                    //_logger.LogInformation($"Send | {childClientName} | {byteRead} | {bufferString}");
-
-                    //lock (_lockerSend)
-                    //{
-                    //    clients.Caller.ChildClientSocketRequest(childClientName, bufferString).Wait();
-                    //}
-
-                    await clients.Caller.ChildClientSocketRequest(childClientName, bufferString);
-
-                }
-
-            }
-            catch (Exception ex)
-            {
-
-                _logger.LogInformation($"Child client {childClientName}: {ex.Message}");
-
-                _logger.LogError(ex.ToString());
-            }
-            finally
-            {
-
-                await clients.Caller.CloseChildClient(childClientName);
-
-                _listChildConnect.Remove(childClientName);
-
-                _logger.LogInformation($"Child client of {_connectionId} disconnected: {childClientName}");
-            }
         }
 
 
@@ -163,28 +95,16 @@ namespace PortForwardServer
 
 
 
-        [HubMethodName("ChildClientSocketReponse")]
-        public void ChildClientSocketReponse(string childClientName, string bufferString)
+        [HubMethodName("SendDatasync")]
+        public async Task SendDatasync(Guid sessionId, string data)
         {
 
-            try
-            {
+            //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-                var childClient = _listChildConnect[childClientName];
+            var client = _listSessionConnect.GetValueOrDefault(sessionId) ?? throw new Exception($"Client {sessionId} is null");
 
-                if (!(childClient?.Connected ?? false)) return;
 
-                lock (_lockerReviced)
-                {
-                    childClient.GetStream().Write(Convert.FromBase64String(bufferString));
-                }
-
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
-
+            await client.GetStream().WriteAsync(Convert.FromBase64String(data));
         }
 
     }

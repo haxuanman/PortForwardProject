@@ -3,11 +3,11 @@
     public interface ISocketServerHub
     {
 
-        Task RequestChildClient(string childClientName);
+        Task CreateSessionAsync(Guid sessionId);
 
-        Task CloseChildClient(string childClientName);
+        Task DeleteSessionAsync(Guid sessionId);
 
-        Task ChildClientSocketRequest(string remoteClientName, string bufferString);
+        Task SendDatasync(Guid sessionId, string data);
 
     }
 }

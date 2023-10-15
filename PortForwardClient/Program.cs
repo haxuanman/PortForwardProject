@@ -24,7 +24,7 @@ namespace PortForwardClient
                     {
                         e.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
                     })
-                    .ConfigureLogging(e => e.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace).AddConsole().AddNLogWeb("nlog.config"))
+                    .ConfigureLogging(e => e.SetMinimumLevel(LogLevel.Trace).AddConsole().AddNLogWeb("nlog.config"))
                     .UseConsoleLifetime()
                     .Build();
 
@@ -32,7 +32,8 @@ namespace PortForwardClient
 
                 Console.WriteLine("Goodbye, Client!");
 
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }

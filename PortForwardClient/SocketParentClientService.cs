@@ -4,6 +4,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog.Web;
 using PortForwardClient.Common;
+using PortForwardClient.Services;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 
@@ -13,11 +15,10 @@ namespace PortForwardClient
     {
 
         private readonly HubConnection _connection;
-        private readonly static Dictionary<string, TcpClient> _listChildConnect = new();
         private readonly IConfiguration _configuration;
         private readonly ILogger _logger;
-        private readonly object _lockerSend = new object();
-        private readonly object _lockerReviced = new object();
+
+        private static ConcurrentDictionary<Guid, TcpClient> _listSessionConnect = new();
 
 
         public SocketParentClientService(
@@ -30,139 +31,19 @@ namespace PortForwardClient
 
             _configuration = configuration;
 
+            var url = new UriBuilder($"{configuration["ServerUrl"]}/ServerSocketHub?requestServerLocalPort={_configuration.GetValue<int>("RequestServerLocalPort")}");
+
             _connection = new HubConnectionBuilder()
                 .ConfigureLogging(logging => logging.AddNLogWeb())
                 .WithAutomaticReconnect(new SignalrAlwaysRetryPolicy(TimeSpan.FromSeconds(_configuration.GetValue<int>("RetryTimeSecond"))))
-                .WithUrl($"{configuration["ServerUrl"]}/ServerSocketHub?requestServerLocalPort={_configuration.GetValue<int>("RequestServerLocalPort")}")
+                .WithUrl(url.ToString())
                 .Build();
 
-            _connection.On("RequestChildClient", new Type[] { typeof(string) }, RequestChildClient, new object());
+            _connection.On<Guid>("CreateSessionAsync", CreateSessionAsync);
 
-            _connection.On("ChildClientSocketRequest", new Type[] { typeof(string), typeof(string) }, ChildClientSocketRequest, new object());
+            _connection.On<Guid>("DeleteSessionAsync", DeleteSessionAsync);
 
-            _connection.On("CloseChildClient", new Type[] { typeof(string) }, CloseChildClient, new object());
-
-        }
-
-
-
-        Task CloseChildClient(object?[] args0, object arg1)
-        {
-
-            var remoteChildClientName = args0[0]?.ToString() ?? string.Empty;
-
-            try
-            {
-
-                var childClient = _listChildConnect[remoteChildClientName];
-
-                _logger.LogInformation($"Closed child client port {((IPEndPoint?)childClient?.Client?.LocalEndPoint)?.Port} for client {remoteChildClientName}");
-
-                childClient?.Close();
-
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-            }
-
-            return Task.CompletedTask;
-
-        }
-
-
-
-        async Task RequestChildClient(object?[] args, object input)
-        {
-
-            var remoteChildClientName = args[0]?.ToString() ?? string.Empty;
-
-            var client = new TcpClient();
-
-            await client.ConnectAsync("localhost", _configuration.GetValue<int>("ClientSharedLocalPort"));
-
-            _logger.LogInformation($"Create child client port {((IPEndPoint?)client?.Client.LocalEndPoint)?.Port} for client {remoteChildClientName}");
-
-            _listChildConnect[remoteChildClientName] = client!;
-
-            HandleChildSocketProxy(remoteChildClientName, client);
-
-        }
-
-
-
-        async void HandleChildSocketProxy(string remoteChildClientName, TcpClient? client)
-        {
-            await HandleChildSocket(remoteChildClientName, client);
-        }
-
-
-
-        async Task HandleChildSocket(string remoteChildClientName, TcpClient? client)
-        {
-            try
-            {
-
-                var bufferSize = Math.Min(8192, client!.ReceiveBufferSize);
-
-                while (client?.Connected ?? false)
-                {
-
-                    var buffer = new byte[bufferSize];
-
-                    var stream = client!.GetStream();
-
-                    var byteRead = await stream.ReadAsync(buffer);
-
-                    if (byteRead == 0) continue;
-
-                    var bufferString = Convert.ToBase64String(buffer.Take(byteRead).ToArray());
-
-                    //_logger.LogInformation($"Send | {remoteChildClientName} | {byteRead} | {bufferString}");
-
-                    //lock (_lockerSend)
-                    //{
-                    //    _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString }).Wait();
-                    //}
-
-                    await _connection.InvokeCoreAsync("ChildClientSocketReponse", new object?[] { remoteChildClientName, bufferString });
-
-                }
-            }
-            catch (Exception ex)
-            {
-
-                _logger.LogInformation(ex.Message);
-
-                _logger.LogError(ex.ToString());
-            }
-        }
-
-
-
-        Task ChildClientSocketRequest(object?[] args, object input)
-        {
-            try
-            {
-
-                var remoteClientName = args[0]?.ToString() ?? string.Empty;
-
-                var buffer = Convert.FromBase64String(args[1]?.ToString() ?? string.Empty);
-
-                var childClient = _listChildConnect[remoteClientName];
-
-                lock (_lockerReviced)
-                {
-                    childClient.GetStream().Write(buffer);
-                }
-
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
-
-            return Task.CompletedTask;
+            _connection.On<Guid, string>("SendDatasync", SendDatasync);
 
         }
 
@@ -188,5 +69,61 @@ namespace PortForwardClient
                 _logger.LogError(ex.ToString());
             }
         }
+
+
+
+        public async Task CreateSessionAsync(Guid sessionId)
+        {
+
+            var hostPort = _configuration.GetValue<int>("ClientSharedLocalPort");
+
+            var client = new TcpClient();
+            await client.ConnectAsync(IPAddress.Loopback, hostPort);
+
+            _listSessionConnect.TryAdd(sessionId, client);
+
+            var hostSocketService = new HostSocketService(
+                logger: _logger,
+                connection: _connection,
+                client: client!,
+                sessionId: sessionId
+                );
+
+            hostSocketService.HandleHostSocketProxyAsync();
+
+        }
+
+
+
+        public Task DeleteSessionAsync(Guid sessionId)
+        {
+
+            if (_listSessionConnect.Remove(sessionId, out var currentClient))
+            {
+                try
+                {
+                    currentClient?.Close();
+                    currentClient?.Dispose();
+                }
+                catch { };
+            };
+
+            return Task.CompletedTask;
+        }
+
+
+
+        public async Task SendDatasync(Guid sessionId, string data)
+        {
+
+            //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
+
+            var client = _listSessionConnect.GetValueOrDefault(sessionId) ?? throw new Exception($"Client {sessionId} is null");
+
+            var dataValue = Convert.FromBase64String(data);
+
+            await client.GetStream().WriteAsync(dataValue);
+        }
+
     }
 }
