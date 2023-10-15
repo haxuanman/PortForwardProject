@@ -80,12 +80,12 @@ namespace FortForwardGateway.Hubs
         [HubMethodName("SendDatasync")]
         public Task SendDatasync(string fromUserName, string toUserName, Guid sessionId, string data)
         {
-            var hostData = ListUsers.GetValueOrDefault(toUserName);
-            if (hostData == null) return Task.CompletedTask;
+            //var hostData = ListUsers.GetValueOrDefault(toUserName);
+            //if (hostData == null) return Task.CompletedTask;
 
             //_logger.LogInformation($"SendDatasync {fromUserName} -> {toUserName}: {data}");
 
-            return Clients.Client(hostData.ConnectionId ?? string.Empty).SendDatasync(
+            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).SendDatasync(
                 fromUserName: fromUserName,
                 toUserName: toUserName,
                 sessionId: sessionId,
