@@ -60,31 +60,25 @@ namespace FortForwardGatewayClient.Services
             try
             {
 
-                var bufferSize = Math.Min(8192, _client?.ReceiveBufferSize ?? 8192);
+                var buffer = new byte[8192];
 
                 while (_client?.Connected ?? false)
                 {
 
-                    var buffer = new byte[bufferSize];
-
-                    var stream = _client.GetStream();
-
-                    var byteRead = await stream.ReadAsync(buffer);
+                    var byteRead = await _client.GetStream().ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
 
-                    buffer = buffer.Take(byteRead).ToArray();
-
-                    var bufferString = Convert.ToBase64String(buffer);
-
-                    //_logger.LogInformation($"{_hubClientConfig.UserName} -> {_hubClientConfig.HostUserName} {_sessionId}: {bufferString}");
-
-                    await _connection.InvokeAsync(
-                        nameof(IPortForwardHubClientMethod.SendDatasync),
-                        _hubClientConfig.UserName,
-                        _hubClientConfig.HostUserName,
-                        _sessionId,
-                        bufferString);
+                    await _connection.InvokeCoreAsync(
+                        nameof(IPortForwardHubClientMethod.SendDataAsync),
+                        new object[]
+                        {
+                            _hubClientConfig.UserName ?? string.Empty,
+                            _hubClientConfig.HostUserName ?? string.Empty,
+                            _sessionId,
+                            Convert.ToBase64String(buffer[..byteRead].ToArray())
+                        }
+                        );
 
                 }
 

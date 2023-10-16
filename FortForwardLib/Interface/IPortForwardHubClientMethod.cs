@@ -11,7 +11,7 @@
         /// <param name="sessionId"></param>
         /// <param name="data"></param>
         /// <returns></returns>
-        Task SendDatasync(string fromUserName, string toUserName, Guid sessionId, string data);
+        Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data);
 
         /// <summary>
         /// tạo phiên kết nối
