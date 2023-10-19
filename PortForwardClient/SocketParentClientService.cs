@@ -104,7 +104,7 @@ namespace PortForwardClient
                     currentClient?.Close();
                     currentClient?.Dispose();
                 }
-                catch { };
+                catch { }
             };
 
             return Task.CompletedTask;
@@ -112,14 +112,12 @@ namespace PortForwardClient
 
 
 
-        public Task SendDataAsync(Guid sessionId, string data)
+        public async Task SendDataAsync(Guid sessionId, string data)
         {
 
-            _logger.LogInformation($"SendDatasync: {sessionId} {data}");
+            //_logger.LogInformation($"SendDatasync: {sessionId} {data}");
 
-            _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
-
-            return Task.CompletedTask;
+            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
 
         }
 

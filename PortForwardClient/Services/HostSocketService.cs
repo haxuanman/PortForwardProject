@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
-using System;
 
 namespace PortForwardClient.Services
 {
@@ -36,14 +35,14 @@ namespace PortForwardClient.Services
             {
                 _client?.Dispose();
             }
-            catch { };
+            catch { }
         }
 
 
 
         internal async void HandleHostSocketProxyAsync()
         {
-            await HandleHostSocketAsync();
+            HandleHostSocketAsync().Wait();
         }
 
 
@@ -56,7 +55,9 @@ namespace PortForwardClient.Services
             try
             {
 
-                var buffer = new byte[8192];
+                const string sendMethod = "SendDataAsync";
+
+                var buffer = new byte[16384];
 
                 while (_client?.Connected ?? false)
                 {
@@ -66,7 +67,7 @@ namespace PortForwardClient.Services
                     if (byteRead == 0) continue;
 
                     await _connection.SendCoreAsync(
-                        "SendDataAsync",
+                        sendMethod,
                         new object[]
                         {
                             _sessionId,

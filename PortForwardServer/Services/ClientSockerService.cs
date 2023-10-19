@@ -1,5 +1,4 @@
 ﻿using System.Net.Sockets;
-using System;
 
 namespace PortForwardServer.Services
 {
@@ -34,14 +33,14 @@ namespace PortForwardServer.Services
             {
                 _client?.Dispose();
             }
-            catch { };
+            catch { }
         }
 
 
 
         internal async void HandleClientSocketProxyAsync()
         {
-            await HandleClientSocketAsync();
+            HandleClientSocketAsync().Wait();
         }
 
 
@@ -56,7 +55,7 @@ namespace PortForwardServer.Services
 
                 await _caller.CreateSessionAsync(_sessionId);
 
-                var buffer = new byte[8192];
+                var buffer = new byte[16384];
 
                 while (_client?.Connected ?? false)
                 {
@@ -64,8 +63,6 @@ namespace PortForwardServer.Services
                     var byteRead = await _client.GetStream().ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
-
-                    _logger.LogError($"HandleClientSocketAsync: {Convert.ToBase64String(buffer[..byteRead].ToArray())}");
 
                     await _caller.SendDataAsync(_sessionId, Convert.ToBase64String(buffer[..byteRead].ToArray()));
 
