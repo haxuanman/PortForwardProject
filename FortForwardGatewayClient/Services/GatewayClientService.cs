@@ -58,7 +58,7 @@ namespace FortForwardGatewayClient.Services
 
             _connection.On<string, string, Guid, int>(nameof(IPortForwardHubClientMethod.CreateSessionAsync), CreateSessionAsync);
             _connection.On<string, string, Guid>(nameof(IPortForwardHubClientMethod.DeleteSessionAsync), DeleteSessionAsync);
-            _connection.On<string, string, Guid, string>(nameof(IPortForwardHubClientMethod.SendDatasync), SendDatasync);
+            _connection.On<string, string, Guid, string>(nameof(IPortForwardHubClientMethod.SendDataAsync), SendDataAsync);
 
         }
 
@@ -150,16 +150,15 @@ namespace FortForwardGatewayClient.Services
 
 
 
-        public async Task SendDatasync(string fromUserName, string toUserName, Guid sessionId, string data)
+        public Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            var client = _listSessionConnect.GetValueOrDefault(sessionId) ?? throw new Exception($"Client {sessionId} is null");
+            _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
 
-            var dataValue = Convert.FromBase64String(data);
+            return Task.CompletedTask;
 
-            await client.GetStream().WriteAsync(dataValue);
         }
 
 

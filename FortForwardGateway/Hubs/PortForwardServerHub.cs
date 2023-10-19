@@ -77,15 +77,14 @@ namespace FortForwardGateway.Hubs
 
 
 
-        [HubMethodName("SendDatasync")]
-        public Task SendDatasync(string fromUserName, string toUserName, Guid sessionId, string data)
+        public Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
         {
             //var hostData = ListUsers.GetValueOrDefault(toUserName);
             //if (hostData == null) return Task.CompletedTask;
 
             //_logger.LogInformation($"SendDatasync {fromUserName} -> {toUserName}: {data}");
 
-            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).SendDatasync(
+            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).SendDataAsync(
                 fromUserName: fromUserName,
                 toUserName: toUserName,
                 sessionId: sessionId,
@@ -94,7 +93,6 @@ namespace FortForwardGateway.Hubs
 
 
 
-        [HubMethodName("CreateSessionAsync")]
         public Task CreateSessionAsync(string fromUserName, string toUserName, Guid sessionId, int hostPort)
         {
             var hostData = ListUsers.GetValueOrDefault(toUserName);
@@ -105,7 +103,6 @@ namespace FortForwardGateway.Hubs
 
 
 
-        [HubMethodName("DeleteSessionAsync")]
         public Task DeleteSessionAsync(string fromUserName, string toUserName, Guid sessionId)
         {
             var hostData = ListUsers.GetValueOrDefault(toUserName);
