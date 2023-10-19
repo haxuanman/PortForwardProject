@@ -40,7 +40,7 @@ namespace FortForwardGatewayClient.Services
             {
                 _client?.Dispose();
             }
-            catch { };
+            catch { }
         }
 
 
@@ -59,14 +59,23 @@ namespace FortForwardGatewayClient.Services
             try
             {
 
-                await _connection.InvokeAsync(
+                await _connection.InvokeCoreAsync(
                     nameof(IPortForwardHubClientMethod.CreateSessionAsync),
-                    _hubClientConfig.UserName,
-                    _hubClientConfig.HostUserName,
-                    _sessionId,
-                    _hubClientConfig.HostPort);
+                    new object[]
+                    {
+                        _hubClientConfig.UserName ?? string.Empty,
+                        _hubClientConfig.HostUserName ?? string.Empty,
+                        _sessionId,
+                        _hubClientConfig.HostPort.GetValueOrDefault()
+                    });
 
-                var buffer = new byte[8192];
+                await Task.Delay(TimeSpan.FromSeconds(5));
+
+                const string sendMethod = nameof(IPortForwardHubClientMethod.SendDataAsync);
+                string hubClientConfigUserName = _hubClientConfig.UserName ?? string.Empty;
+                string hubClientConfigHostUserName = _hubClientConfig.HostUserName ?? string.Empty;
+
+                var buffer = new byte[28688];
 
                 while (_client?.Connected ?? false)
                 {
@@ -75,12 +84,12 @@ namespace FortForwardGatewayClient.Services
 
                     if (byteRead == 0) continue;
 
-                    await _connection.InvokeCoreAsync(
-                        nameof(IPortForwardHubClientMethod.SendDataAsync),
+                    await _connection.SendCoreAsync(
+                        sendMethod,
                         new object[]
                         {
-                            _hubClientConfig?.UserName ?? string.Empty,
-                            _hubClientConfig?.HostUserName ?? string.Empty,
+                            hubClientConfigUserName,
+                            hubClientConfigHostUserName,
                             _sessionId,
                             Convert.ToBase64String(buffer[..byteRead].ToArray())
                         });

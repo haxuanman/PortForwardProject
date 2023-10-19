@@ -78,9 +78,9 @@ namespace FortForwardGatewayClient.Services
 
                 _listener = new TcpListener(IPAddress.Any, clientPort);
 
-                _listener?.Start();
+                _listener.Start();
 
-                _listener?.BeginAcceptTcpClient(new AsyncCallback(OnAcceptTcpClient), null);
+                _listener.BeginAcceptTcpClient(new AsyncCallback(OnAcceptTcpClient), null);
 
                 _logger.LogInformation($"Start local port {clientPort}!");
 
@@ -150,14 +150,12 @@ namespace FortForwardGatewayClient.Services
 
 
 
-        public Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
+        public async Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
-
-            return Task.CompletedTask;
+            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
 
         }
 
@@ -165,6 +163,8 @@ namespace FortForwardGatewayClient.Services
 
         public async Task CreateSessionAsync(string fromUserName, string toUserName, Guid sessionId, int hostPort)
         {
+
+            _logger.LogInformation($"CreateSessionAsync: {fromUserName} -> {toUserName} {sessionId} {hostPort}");
 
             var tcpClient = new TcpClient();
             await tcpClient.ConnectAsync(IPAddress.Loopback, hostPort);
@@ -189,8 +189,10 @@ namespace FortForwardGatewayClient.Services
 
 
 
-        public Task DeleteSessionAsync(string hostUserName, string clientUserName, Guid sessionId)
+        public Task DeleteSessionAsync(string fromUserName, string toUserName, Guid sessionId)
         {
+
+            _logger.LogInformation($"CreateSessionAsync: {fromUserName} -> {toUserName} {sessionId}");
 
             if (_listSessionConnect.Remove(sessionId, out var currentClient))
             {

@@ -79,8 +79,6 @@ namespace FortForwardGateway.Hubs
 
         public Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
         {
-            //var hostData = ListUsers.GetValueOrDefault(toUserName);
-            //if (hostData == null) return Task.CompletedTask;
 
             //_logger.LogInformation($"SendDatasync {fromUserName} -> {toUserName}: {data}");
 
@@ -88,27 +86,30 @@ namespace FortForwardGateway.Hubs
                 fromUserName: fromUserName,
                 toUserName: toUserName,
                 sessionId: sessionId,
-                data: data);
+                data: data
+                );
         }
 
 
 
         public Task CreateSessionAsync(string fromUserName, string toUserName, Guid sessionId, int hostPort)
         {
-            var hostData = ListUsers.GetValueOrDefault(toUserName);
-            if (hostData == null) return Task.CompletedTask;
 
-            return Clients.Client(hostData?.ConnectionId ?? string.Empty).CreateSessionAsync(fromUserName, toUserName, sessionId, hostPort);
+            _logger.LogInformation($"CreateSessionAsync {fromUserName} -> {toUserName} {sessionId} {hostPort}");
+
+            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).CreateSessionAsync(fromUserName, toUserName, sessionId, hostPort);
+
         }
 
 
 
         public Task DeleteSessionAsync(string fromUserName, string toUserName, Guid sessionId)
         {
-            var hostData = ListUsers.GetValueOrDefault(toUserName);
-            if (hostData == null) return Task.CompletedTask;
 
-            return Clients.Client(hostData?.ConnectionId ?? string.Empty).DeleteSessionAsync(fromUserName, toUserName, sessionId);
+            _logger.LogInformation($"DeleteSessionAsync {fromUserName} -> {toUserName} {sessionId}");
+
+            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).DeleteSessionAsync(fromUserName, toUserName, sessionId);
+
         }
 
     }
