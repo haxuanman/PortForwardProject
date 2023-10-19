@@ -28,4 +28,10 @@
 		<ProjectReference Include="..\FortForwardLib\FortForwardLib.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <None Update="DockerfileBinary.example">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
 </Project>
