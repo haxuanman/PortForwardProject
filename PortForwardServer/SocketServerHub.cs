@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Primitives;
+using PortForwardServer.Dal;
 using PortForwardServer.Services;
 using System.Net;
 using System.Net.Sockets;
@@ -9,8 +10,10 @@ namespace PortForwardServer
     public class SocketServerHub : Hub<ISocketServerHub>
     {
 
-        private TcpListener _listener = new TcpListener(IPAddress.Any, 0);
+        private TcpListener _listener;
         private static readonly Dictionary<Guid, TcpClient> _listSessionConnect = new();
+        private static readonly Dictionary<string, List<Guid>> _listSessionConnection = new();
+        private static readonly Dictionary<string, TcpListener> _listConnectionListener = new();
         private readonly ILogger _logger;
 
 
@@ -38,18 +41,24 @@ namespace PortForwardServer
 
                 _logger.LogInformation($"New client connect {Context?.ConnectionId}");
 
-                _listener = new TcpListener(IPAddress.Any, requestLocalPort);
+                if (!_listConnectionListener.ContainsKey(Context!.ConnectionId)) _listConnectionListener.Add(Context.ConnectionId, new TcpListener(IPAddress.Any, requestLocalPort));
 
-                _listener?.Start();
+                _listener = _listConnectionListener[Context.ConnectionId];
 
-                _logger.LogInformation($"Open local port {((IPEndPoint?)_listener?.LocalEndpoint)?.Port} for client {Context?.ConnectionId}");
+                _listener.Start();
 
-                _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), Clients.Caller);
+                _logger.LogInformation($"Open local port {((IPEndPoint?)_listener.LocalEndpoint)?.Port} for client {Context?.ConnectionId}");
+
+                _listener.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), new HandleIncomingConnectionStateDto
+                {
+                    ConnectionId = Context?.ConnectionId,
+                    Caller = Clients.Caller,
+                });
 
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.ToString());
+                _logger.LogError($"OnConnectedAsync: {ex}");
             }
 
         }
@@ -59,24 +68,35 @@ namespace PortForwardServer
         private void HandleIncomingConnection(IAsyncResult result)
         {
 
-            var caller = result.AsyncState as ISocketServerHub;
+            try
+            {
+                var state = result.AsyncState as HandleIncomingConnectionStateDto;
 
-            var client = _listener?.EndAcceptTcpClient(result);
+                _listConnectionListener.TryGetValue(state!.ConnectionId!, out var listener);
+                if (listener == null) return;
 
-            _listener?.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), caller);
+                var client = listener.EndAcceptTcpClient(result);
 
-            var sessionId = Guid.NewGuid();
+                listener.BeginAcceptTcpClient(new AsyncCallback(HandleIncomingConnection), state);
 
-            _listSessionConnect.TryAdd(sessionId, client!);
+                var sessionId = Guid.NewGuid();
 
-            var clientSockerService = new ClientSockerService(
-                logger: _logger,
-                caller: caller,
-                client: client,
-                sessionId: sessionId
-                );
+                var connectionId = state!.ConnectionId!;
 
-            clientSockerService.HandleClientSocketProxyAsync();
+                _listSessionConnect.TryAdd(sessionId, client!);
+                if (!_listSessionConnection.ContainsKey(connectionId)) _listSessionConnection.Add(connectionId, new List<Guid>());
+                _listSessionConnection[connectionId].Add(sessionId);
+
+                var clientSockerService = new ClientSockerService(
+                    logger: _logger,
+                    caller: state!.Caller!,
+                    client: client,
+                    sessionId: sessionId
+                    );
+
+                clientSockerService.HandleClientSocketProxyAsync();
+            }
+            catch { }
 
         }
 
@@ -87,9 +107,40 @@ namespace PortForwardServer
 
             _logger.LogInformation($"Client disconnected {Context?.ConnectionId}");
 
+            if (_listSessionConnection.ContainsKey(Context?.ConnectionId ?? string.Empty))
+            {
+                foreach (var item in _listSessionConnection[Context?.ConnectionId ?? string.Empty] ?? new List<Guid>())
+                {
+                    try
+                    {
+                        _listSessionConnect[item].Close();
+                    }
+                    catch { }
+
+                    try
+                    {
+                        _listSessionConnect[item].Dispose();
+                    }
+                    catch { }
+
+                    try
+                    {
+                        _listSessionConnect.Remove(item);
+                    }
+                    catch { }
+                }
+            }
+
             try
             {
-                _listener?.Stop();
+                _listSessionConnection.Remove(Context?.ConnectionId ?? string.Empty);
+            }
+            catch { }
+
+            try
+            {
+                _listConnectionListener.TryGetValue(Context!.ConnectionId, out var listener);
+                listener?.Stop();
             }
             catch { }
 

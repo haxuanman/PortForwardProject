@@ -40,7 +40,7 @@ namespace PortForwardServer.Services
 
         internal async void HandleClientSocketProxyAsync()
         {
-            HandleClientSocketAsync().Wait();
+            await HandleClientSocketAsync();
         }
 
 
@@ -72,11 +72,16 @@ namespace PortForwardServer.Services
             {
 
                 _logger.LogError(ex.ToString());
-
-                await _caller.DeleteSessionAsync(_sessionId);
             }
             finally
             {
+
+                try
+                {
+                    await _caller.DeleteSessionAsync(_sessionId);
+                }
+                catch { }
+
                 _logger.LogInformation($"Close session {_sessionId}: {_client?.Client?.RemoteEndPoint}");
             }
 

@@ -10,7 +10,7 @@ using System.Net.Sockets;
 
 namespace PortForwardClient
 {
-    public class SocketParentClientService : IHostedService
+    public class SocketParentClientService : IHostedService, IDisposable
     {
 
         private readonly HubConnection _connection;
@@ -50,7 +50,7 @@ namespace PortForwardClient
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await _connection.StartAsync();
+            await _connection.StartAsync(cancellationToken);
 
             _logger.LogInformation($"Connected to server!");
         }
@@ -61,7 +61,7 @@ namespace PortForwardClient
         {
             try
             {
-                await _connection.StopAsync();
+                await _connection.StopAsync(cancellationToken);
             }
             catch (Exception ex)
             {
@@ -105,7 +105,9 @@ namespace PortForwardClient
                     currentClient?.Dispose();
                 }
                 catch { }
-            };
+            }
+
+            _logger.LogInformation($"DeleteSessionAsync: {sessionId}");
 
             return Task.CompletedTask;
         }
@@ -119,6 +121,13 @@ namespace PortForwardClient
 
             await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
 
+        }
+
+
+
+        public void Dispose()
+        {
+            _connection.DisposeAsync().AsTask().Wait();
         }
 
     }

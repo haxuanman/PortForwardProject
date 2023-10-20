@@ -42,7 +42,7 @@ namespace PortForwardClient.Services
 
         internal async void HandleHostSocketProxyAsync()
         {
-            HandleHostSocketAsync().Wait();
+            await HandleHostSocketAsync();
         }
 
 
