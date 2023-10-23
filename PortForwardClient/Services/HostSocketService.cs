@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
+using System.Threading.Channels;
 
 namespace PortForwardClient.Services
 {
@@ -52,6 +53,8 @@ namespace PortForwardClient.Services
 
             _logger.LogInformation($"New session {_sessionId}");
 
+            
+
             try
             {
 
@@ -59,22 +62,29 @@ namespace PortForwardClient.Services
 
                 var buffer = new byte[16384];
 
+                var channel = Channel.CreateUnbounded<byte[]>();
+
+                var stream = _client.GetStream();
+
+                await _connection.SendCoreAsync("StreamDataAsync",
+                    new object[]
+                    {
+                        _sessionId,
+                        channel.Reader
+                    });
+
                 while (_client?.Connected ?? false)
                 {
 
-                    var byteRead = await _client.GetStream().ReadAsync(buffer);
+                    var byteRead = await stream.ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
 
-                    await _connection.SendCoreAsync(
-                        sendMethod,
-                        new object[]
-                        {
-                            _sessionId,
-                            Convert.ToBase64String(buffer[..byteRead].ToArray())
-                        });
+                    await channel.Writer.WriteAsync(buffer[..byteRead]);
 
                 }
+
+                channel.Writer.Complete();
 
             }
             catch (Exception ex)

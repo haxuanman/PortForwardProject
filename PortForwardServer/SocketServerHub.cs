@@ -4,6 +4,7 @@ using PortForwardServer.Dal;
 using PortForwardServer.Services;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Channels;
 
 namespace PortForwardServer
 {
@@ -157,6 +158,23 @@ namespace PortForwardServer
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
             _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
+        }
+
+
+
+        [HubMethodName("StreamDataAsync")]
+        public async Task StreamDataAsync(Guid sessionId, IAsyncEnumerable<byte[]> streamInput)
+        {
+
+            //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
+
+            var stream = _listSessionConnect[sessionId].GetStream();
+
+            await foreach (var data in streamInput)
+            {
+                await stream.WriteAsync(data);
+            }
+
         }
 
     }
