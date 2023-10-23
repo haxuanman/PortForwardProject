@@ -114,12 +114,12 @@ namespace PortForwardClient
 
 
 
-        public async Task SendDataAsync(Guid sessionId, string data)
+        public Task SendDataAsync(Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {sessionId} {data}");
 
-            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
+            return _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data)).AsTask();
 
         }
 

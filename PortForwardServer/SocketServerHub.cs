@@ -152,12 +152,12 @@ namespace PortForwardServer
 
 
         [HubMethodName("SendDataAsync")]
-        public void SendDataAsync(Guid sessionId, string data)
+        public Task SendDataAsync(Guid sessionId, string data)
         {
 
             //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
 
-            _listSessionConnect[sessionId].GetStream().Write(Convert.FromBase64String(data));
+            return _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data)).AsTask();
         }
 
 
@@ -166,7 +166,7 @@ namespace PortForwardServer
         public async Task StreamDataAsync(Guid sessionId, IAsyncEnumerable<byte[]> streamInput)
         {
 
-            //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
+            //_logger.LogInformation($"StreamDataAsync: {sessionId}");
 
             var stream = _listSessionConnect[sessionId].GetStream();
 

@@ -57,10 +57,12 @@ namespace PortForwardServer.Services
 
                 var buffer = new byte[16384];
 
+                var steam = _client.GetStream();
+
                 while (_client?.Connected ?? false)
                 {
 
-                    var byteRead = await _client.GetStream().ReadAsync(buffer);
+                    var byteRead = await steam.ReadAsync(buffer);
 
                     if (byteRead == 0) continue;
 
