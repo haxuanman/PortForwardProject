@@ -7,7 +7,7 @@
 
         Task DeleteSessionAsync(Guid sessionId);
 
-        Task SendDataAsync(Guid sessionId, string data);
+        Task SendDataAsync(Guid sessionId, byte[] data);
 
     }
 }

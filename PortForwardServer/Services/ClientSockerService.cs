@@ -66,7 +66,7 @@ namespace PortForwardServer.Services
 
                     if (byteRead == 0) continue;
 
-                    await _caller.SendDataAsync(_sessionId, Convert.ToBase64String(buffer[..byteRead].ToArray()));
+                    await _caller.SendDataAsync(_sessionId, buffer[..byteRead]);
 
                 }
             }
