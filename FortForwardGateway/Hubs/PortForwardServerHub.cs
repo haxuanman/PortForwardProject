@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 namespace FortForwardGateway.Hubs
 {
-    public class PortForwardServerHub : Hub<IPortForwardHubClientMethod>, IPortForwardHubClientMethod
+    public class PortForwardServerHub : Hub<IPortForwardHubClientMethod>
     {
 
         private readonly ILogger _logger;
@@ -63,7 +63,7 @@ namespace FortForwardGateway.Hubs
         public override Task OnDisconnectedAsync(Exception? exception)
         {
 
-            _logger.LogInformation($"Close client {Context?.ConnectionId}");
+            _logger.LogInformation($"Close client {Context?.ConnectionId}: {exception}");
 
             var userName = Context?.GetHttpContext()?.Request.Query["userName"].ToString()?.ToLower() ?? string.Empty;
 
@@ -77,27 +77,17 @@ namespace FortForwardGateway.Hubs
 
 
 
-        public Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
-        {
-
-            //_logger.LogInformation($"SendDatasync {fromUserName} -> {toUserName}: {data}");
-
-            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).SendDataAsync(
-                fromUserName: fromUserName,
-                toUserName: toUserName,
-                sessionId: sessionId,
-                data: data
-                );
-        }
-
-
-
         public Task CreateSessionAsync(string fromUserName, string toUserName, Guid sessionId, int hostPort)
         {
 
             _logger.LogInformation($"CreateSessionAsync {fromUserName} -> {toUserName} {sessionId} {hostPort}");
 
-            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).CreateSessionAsync(fromUserName, toUserName, sessionId, hostPort);
+            if (ListUsers.TryGetValue(toUserName, out var toUserNameClient))
+            {
+                return Clients.Client(toUserNameClient.ConnectionId ?? string.Empty).CreateSessionAsync(fromUserName, toUserName, sessionId, hostPort);
+            }
+
+            return Task.CompletedTask;
 
         }
 
@@ -108,7 +98,36 @@ namespace FortForwardGateway.Hubs
 
             _logger.LogInformation($"DeleteSessionAsync {fromUserName} -> {toUserName} {sessionId}");
 
-            return Clients.Client(ListUsers[toUserName]?.ConnectionId ?? string.Empty).DeleteSessionAsync(fromUserName, toUserName, sessionId);
+            if (ListUsers.TryGetValue(toUserName, out var toUserNameClient))
+            {
+                return Clients.Client(toUserNameClient.ConnectionId ?? string.Empty).DeleteSessionAsync(fromUserName, toUserName, sessionId);
+            }
+
+            return Task.CompletedTask;
+
+        }
+
+
+
+        [HubMethodName("StreamDataAsync")]
+        public async Task StreamDataAsync(string fromUserName, string toUserName, Guid sessionId, IAsyncEnumerable<byte[]> dataStream)
+        {
+
+            _logger.LogInformation($"StreamDataAsync {fromUserName} -> {toUserName} {sessionId}");
+
+            if (ListUsers.TryGetValue(toUserName, out var toUserNameClient))
+            {
+
+                await foreach (var data in dataStream)
+                {
+                    await Clients.Client(toUserNameClient.ConnectionId ?? string.Empty).SendDataByteAsync(
+                        fromUserName: fromUserName,
+                        toUserName: toUserName,
+                        sessionId: sessionId,
+                        data: data
+                        );
+                }
+            }
 
         }
 

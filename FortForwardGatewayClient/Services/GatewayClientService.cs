@@ -58,7 +58,7 @@ namespace FortForwardGatewayClient.Services
 
             _connection.On<string, string, Guid, int>(nameof(IPortForwardHubClientMethod.CreateSessionAsync), CreateSessionAsync);
             _connection.On<string, string, Guid>(nameof(IPortForwardHubClientMethod.DeleteSessionAsync), DeleteSessionAsync);
-            _connection.On<string, string, Guid, string>(nameof(IPortForwardHubClientMethod.SendDataAsync), SendDataAsync);
+            _connection.On<string, string, Guid, byte[]>(nameof(IPortForwardHubClientMethod.SendDataByteAsync), SendDataByteAsync);
 
         }
 
@@ -67,23 +67,31 @@ namespace FortForwardGatewayClient.Services
         public async Task StartAsync(CancellationToken cancellationToken)
         {
 
-            await _connection.StartAsync(cancellationToken);
-
-            _logger.LogInformation($"Connected to server!");
-
-            if (_hubClientConfig.IsClient == true)
+            try
             {
+                await _connection.StartAsync(cancellationToken);
 
-                var clientPort = _hubClientConfig?.ClientPort.GetValueOrDefault() ?? throw new Exception("ConnectPort is null");
+                _logger.LogInformation($"Connected to server!");
 
-                _listener = new TcpListener(IPAddress.Any, clientPort);
+                if (_hubClientConfig.IsClient == true)
+                {
 
-                _listener.Start();
+                    var clientPort = _hubClientConfig?.ClientPort.GetValueOrDefault() ?? throw new Exception("ConnectPort is null");
 
-                _listener.BeginAcceptTcpClient(new AsyncCallback(OnAcceptTcpClient), null);
+                    _listener = new TcpListener(IPAddress.Any, clientPort);
 
-                _logger.LogInformation($"Start local port {clientPort}!");
+                    _listener.Start();
 
+                    _listener.BeginAcceptTcpClient(new AsyncCallback(OnAcceptTcpClient), null);
+
+                    _logger.LogInformation($"Start local port {clientPort}!");
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"StartAsync: {ex}");
             }
         }
 
@@ -92,22 +100,31 @@ namespace FortForwardGatewayClient.Services
         private void OnAcceptTcpClient(IAsyncResult result)
         {
 
-            var client = _listener?.EndAcceptTcpClient(result);
+            try
+            {
 
-            _listener?.BeginAcceptTcpClient(new AsyncCallback(OnAcceptTcpClient), null);
+                var client = _listener?.EndAcceptTcpClient(result);
 
-            var sessionId = Guid.NewGuid();
+                _listener?.BeginAcceptTcpClient(new AsyncCallback(OnAcceptTcpClient), null);
 
-            _listSessionConnect.TryAdd(sessionId, client);
+                var sessionId = Guid.NewGuid();
 
-            var clientSockerService = new ClientSockerService(
-                logger: _logger,
-                hubClientConfig: _hubClientConfig,
-                connection: _connection,
-                client: client,
-                sessionId: sessionId);
+                _listSessionConnect.TryAdd(sessionId, client);
 
-            clientSockerService.HandleClientSocketProxyAsync();
+                var clientSockerService = new ClientSockerService(
+                    logger: _logger,
+                    hubClientConfig: _hubClientConfig,
+                    connection: _connection,
+                    client: client,
+                    sessionId: sessionId);
+
+                clientSockerService.HandleClientSocketProxyAsync();
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"OnAcceptTcpClient: {ex}");
+            }
 
         }
 
@@ -150,40 +167,38 @@ namespace FortForwardGatewayClient.Services
 
 
 
-        public async Task SendDataAsync(string fromUserName, string toUserName, Guid sessionId, string data)
-        {
-
-            //_logger.LogInformation($"SendDatasync: {fromUserName} -> {toUserName} {sessionId} {data}");
-
-            await _listSessionConnect[sessionId].GetStream().WriteAsync(Convert.FromBase64String(data));
-
-        }
-
-
-
         public async Task CreateSessionAsync(string fromUserName, string toUserName, Guid sessionId, int hostPort)
         {
 
-            _logger.LogInformation($"CreateSessionAsync: {fromUserName} -> {toUserName} {sessionId} {hostPort}");
+            try
+            {
 
-            var tcpClient = new TcpClient();
-            await tcpClient.ConnectAsync(IPAddress.Loopback, hostPort);
+                _logger.LogInformation($"CreateSessionAsync: {fromUserName} -> {toUserName} {sessionId} {hostPort}");
 
-            _listSessionConnect.TryAdd(sessionId, tcpClient);
+                var tcpClient = new TcpClient();
+                await tcpClient.ConnectAsync(IPAddress.Loopback, hostPort);
 
-            var hostSocketService = new HostSocketService(
-                logger: _logger,
-                hubClientConfig: new HubClientConfig
-                {
-                    UserName = toUserName,
-                    HostUserName = fromUserName
-                },
-                connection: _connection,
-                client: tcpClient,
-                sessionId: sessionId
-                );
+                _listSessionConnect.TryAdd(sessionId, tcpClient);
 
-            hostSocketService.HandleHostSocketProxyAsync();
+                var hostSocketService = new HostSocketService(
+                    logger: _logger,
+                    hubClientConfig: new HubClientConfig
+                    {
+                        UserName = toUserName,
+                        HostUserName = fromUserName
+                    },
+                    connection: _connection,
+                    client: tcpClient,
+                    sessionId: sessionId
+                    );
+
+                hostSocketService.HandleHostSocketProxyAsync();
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"CreateSessionAsync: {ex}");
+            }
 
         }
 
@@ -192,7 +207,7 @@ namespace FortForwardGatewayClient.Services
         public Task DeleteSessionAsync(string fromUserName, string toUserName, Guid sessionId)
         {
 
-            _logger.LogInformation($"CreateSessionAsync: {fromUserName} -> {toUserName} {sessionId}");
+            _logger.LogInformation($"DeleteSessionAsync: {fromUserName} -> {toUserName} {sessionId}");
 
             if (_listSessionConnect.Remove(sessionId, out var currentClient))
             {
@@ -201,10 +216,17 @@ namespace FortForwardGatewayClient.Services
                     currentClient?.Close();
                     currentClient?.Dispose();
                 }
-                catch { };
-            };
+                catch { }
+            }
 
             return Task.CompletedTask;
+        }
+
+
+
+        public Task SendDataByteAsync(string fromUserName, string toUserName, Guid sessionId, byte[] data)
+        {
+            return _listSessionConnect[sessionId].GetStream().WriteAsync(data).AsTask();
         }
 
     }

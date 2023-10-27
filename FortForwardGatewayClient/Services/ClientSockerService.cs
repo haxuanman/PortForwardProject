@@ -3,6 +3,7 @@ using FortForwardLib.Interface;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
+using System.Threading.Channels;
 
 namespace FortForwardGatewayClient.Services
 {
@@ -69,37 +70,44 @@ namespace FortForwardGatewayClient.Services
                         _hubClientConfig.HostPort.GetValueOrDefault()
                     });
 
-                await Task.Delay(TimeSpan.FromSeconds(5));
 
-                const string sendMethod = nameof(IPortForwardHubClientMethod.SendDataAsync);
                 string hubClientConfigUserName = _hubClientConfig.UserName ?? string.Empty;
                 string hubClientConfigHostUserName = _hubClientConfig.HostUserName ?? string.Empty;
 
-                var buffer = new byte[28688];
+                const string streamHubName = "StreamDataAsync";
 
-                while (_client?.Connected ?? false)
-                {
+                var channel = Channel.CreateUnbounded<byte[]>();
 
-                    var byteRead = await _client.GetStream().ReadAsync(buffer);
-
-                    if (byteRead == 0) continue;
-
-                    await _connection.SendCoreAsync(
-                        sendMethod,
+                await _connection.SendCoreAsync(
+                        streamHubName,
                         new object[]
                         {
                             hubClientConfigUserName,
                             hubClientConfigHostUserName,
                             _sessionId,
-                            Convert.ToBase64String(buffer[..byteRead].ToArray())
+                            channel.Reader
                         });
 
+                var buffer = new byte[32768];
+
+                var stream = _client.GetStream();
+
+                while (_client?.Connected ?? false)
+                {
+
+                    var byteRead = await stream.ReadAsync(buffer);
+
+                    if (byteRead == 0) continue;
+
+                    await channel.Writer.WriteAsync(buffer[..byteRead]);
+
                 }
+
             }
             catch (Exception ex)
             {
 
-                _logger.LogError(ex.ToString());
+                _logger.LogError($"HandleClientSocketAsync {ex}");
 
                 await _connection.InvokeAsync(
                     nameof(IPortForwardHubClientMethod.DeleteSessionAsync),

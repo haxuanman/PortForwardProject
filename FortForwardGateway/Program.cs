@@ -1,6 +1,5 @@
 using FortForwardGateway.Hubs;
 using Microsoft.AspNetCore.WebSockets;
-using NLog;
 using NLog.Web;
 
 namespace FortForwardGateway
@@ -24,10 +23,13 @@ namespace FortForwardGateway
 
             builder.Services.AddWebSockets(e =>
             {
-                e.KeepAliveInterval = TimeSpan.FromSeconds(5);
             });
 
-            builder.Services.AddSignalR();
+            builder.Services.AddSignalR(e =>
+            {
+                e.EnableDetailedErrors = true;
+                e.MaximumReceiveMessageSize = 65536; // byte
+            });
 
             var app = builder.Build();
 
